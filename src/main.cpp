@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_MAX31865.h>
 
 // Настройки OLED
 #define SCREEN_WIDTH 128
@@ -13,7 +14,13 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool isOledConnected = false;
 
-// Настройки Wi-Fi
+// Настройки MAX31865 (SPI)
+#define MAX31865_CS_PIN 5
+// Использование программного SPI (для примера, можно использовать аппаратный)
+// Pins: DI=23, DO=19, CLK=18, CS=5
+Adafruit_MAX31865 tempSensor = Adafruit_MAX31865(MAX31865_CS_PIN, 23, 19, 18);
+#define RREF      430.0
+#define RNOMINAL  100.0
 const char* ssid = "Ghost";
 const char* pass = "ghostdemonde";
 
@@ -39,17 +46,19 @@ WiFiClientSecure client;
 // Глобальные переменные для обмена данными между ядрами
 float currentVoltage = 0.0;
 float currentPressure = 0.0;
+float currentTemp = 0.0;
 float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
+float tempOffset = 0.5;      // Смещение температуры для компенсации сопротивления проводов (в °C)
 bool isDataReady = false;
+bool isTempSensorConnected = false;
 SemaphoreHandle_t dataMutex; 
-
 esp_adc_cal_characteristics_t adc_chars;
 
 // Прототипы функций
 void setupWiFi();
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar);
-void sendDataToBrewfather(float voltage, float pressure);
-void updateDisplay(String ipStatus, float voltage, float pressureBar);
+void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp);
+void sendDataToBrewfather(float voltage, float pressure, float temp);
+void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp);
 void sensorTask(void *pvParameters);
 void networkTask(void *pvParameters);
 
@@ -73,6 +82,9 @@ void setup() {
   } else {
     Serial.println(F("SSD1306 allocation failed (no OLED connected)"));
   }
+
+  // Инициализация MAX31865
+  tempSensor.begin(MAX31865_3WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
 
   // Создаем мьютекс для защиты общих данных
   dataMutex = xSemaphoreCreateMutex();
@@ -137,50 +149,59 @@ void sensorTask(void *pvParameters) {
     }
     int medianRaw = samples[numSamples / 2];
 
-    // 3. Расчет значений
-    // Используем калиброванное преобразование raw -> mV
+    // 3. Расчет значений давления
     uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(medianRaw, &adc_chars);
-    float vMeasured = voltage_mv / 1000.0; // Напряжение на пине в Вольтах
-    
-    // Коэффициент для делителя 10кОм и 22кОм: (10+22)/22 = 1.4545
-    float vSensor = vMeasured * 1.4545;          // Реальное напряжение на выходе датчика
+    float vMeasured = voltage_mv / 1000.0;
+    float vSensor = vMeasured * 1.4545;
 
     float p = 0.0;
     if (vSensor > offsetVoltage) {
-      // Формула для стандартного датчика с учетом калибровки нуля (offsetVoltage)
       p = (vSensor - offsetVoltage) * 100.0 / (4.5 - 0.5); 
     }
 
-    // Применение адаптивного фильтра EMA
+    // 4. Чтение температуры
+    uint16_t fault = tempSensor.readFault();
+    float t = 0.0;
+    if (fault) {
+      Serial.print("MAX31865 Fault: "); Serial.println(fault);
+      tempSensor.clearFault();
+      isTempSensorConnected = false;
+    } else {
+      t = tempSensor.temperature(RNOMINAL, RREF);
+      if (t < -100.0) {
+        isTempSensorConnected = false;
+      } else {
+        t = t - tempOffset;
+        isTempSensorConnected = true;
+      }
+    }
+
+    // Применение адаптивного фильтра (для давления)
     if (filteredVoltage < 0) {
-      // Инициализация при первом проходе
       filteredVoltage = vSensor;
       filteredPressure = p;
     } else {
-      // Вычисляем абсолютное изменение давления
       float diffPsi = abs(p - filteredPressure);
-
       if (diffPsi > stepThresholdPsi) {
-        // Резкое изменение давления! Сбрасываем фильтр на новые мгновенные значения
         filteredVoltage = vSensor;
         filteredPressure = p;
         Serial.printf("[Сенсор] Резкий скачок давления! Разница: %.2f PSI. Фильтр сброшен.\n", diffPsi);
       } else {
-        // Медленное изменение (шум АЦП). Плавно фильтруем
         filteredVoltage = alpha * vSensor + (1.0 - alpha) * filteredVoltage;
         filteredPressure = alpha * p + (1.0 - alpha) * filteredPressure;
       }
     }
 
-    // 4. Сохранение в общие переменные с блокировкой мьютекса
+    // 5. Сохранение в общие переменные с блокировкой мьютекса
     if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
       currentVoltage = filteredVoltage;
       currentPressure = filteredPressure;
-      isDataReady = true; // Данные считаны хотя бы один раз
+      currentTemp = t; // Сохраняем температуру
+      isDataReady = true;
       xSemaphoreGive(dataMutex);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(200)); // Частота опроса ~5 Гц
+    vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
 
@@ -194,7 +215,7 @@ void networkTask(void *pvParameters) {
 
   for (;;) {
     unsigned long currentMillis = millis();
-    float vLocal = 0.0, pLocal = 0.0;
+    float vLocal = 0.0, pLocal = 0.0, tLocal = 0.0;
     bool ready = false;
 
     // Проверка подключения
@@ -206,6 +227,7 @@ void networkTask(void *pvParameters) {
     if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
       vLocal = currentVoltage;
       pLocal = currentPressure;
+      tLocal = currentTemp;
       ready = isDataReady;
       xSemaphoreGive(dataMutex);
     }
@@ -216,20 +238,20 @@ void networkTask(void *pvParameters) {
       ipStr = WiFi.localIP().toString();
     }
     float pBar = pLocal * 0.0689476;
-    updateDisplay(ipStr, vLocal, pBar);
+    updateDisplay(ipStr, vLocal, pBar, tLocal);
 
     // Выполняем отправку только если данные уже были считаны сенсором
     if (ready) {
         // Отправка в ThingSpeak
         if (currentMillis - lastThingSpeakTime >= tsInterval) {
             lastThingSpeakTime = currentMillis;
-            sendDataToThingSpeak(vLocal, pLocal, pLocal * 0.0689476);
+            sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
         }
 
         // Отправка в Brewfather
         if (currentMillis - lastBrewfatherTime >= bfInterval) {
             lastBrewfatherTime = currentMillis;
-            sendDataToBrewfather(vLocal, pLocal);
+            sendDataToBrewfather(vLocal, pLocal, tLocal);
         }
     } else {
         Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
@@ -238,24 +260,22 @@ void networkTask(void *pvParameters) {
   }
 }
 
-void updateDisplay(String ipStatus, float voltage, float pressureBar) {
+void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp) {
   if (!isOledConnected) return;
   
   display.clearDisplay();
 
   // 1. Желтая зона (верхние 16 пикселей)
-  display.setTextSize(1); // Шрифт размера 2 (16px) заполняет всю высоту зоны 0-15px, используем 1 для читаемости
+  display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   
   if (ipStatus == "Connecting...") {
       display.setCursor(0, 0);
       display.print(ipStatus);
   } else {
-      // IP на левом краю
       display.setCursor(0, 0);
       display.print(ipStatus);
       
-      // Вольтаж на правом краю
       String voltStr = String(voltage, 2) + " V";
       int16_t x1, y1;
       uint16_t w, h;
@@ -266,8 +286,9 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar) {
   display.drawLine(0, 15, 127, 15, SSD1306_WHITE);
 
   // 2. Синяя зона (нижние 48 пикселей)
+  // Средние 2/4 (y=16-48) - Давление
   display.setTextSize(3);
-  display.setCursor(5, 25);
+  display.setCursor(5, 20);
   if (pressureBar < 10.0) {
     display.print(pressureBar, 2);
   } else if (pressureBar < 100.0) {
@@ -276,9 +297,20 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar) {
     display.print((int)pressureBar);
   }
 
-  display.setTextSize(2); // Увеличенный шрифт для "Bar"
-  display.setCursor(85, 33); // Позиция "Bar" (поднято для выравнивания по низу с цифрами)
+  display.setTextSize(2);
+  display.setCursor(85, 28);
   display.print("Bar");
+
+  // Нижняя 1/4 (y=49-63) - Температура
+  display.setTextSize(1);
+  display.setCursor(5, 52);
+  display.print("Temp: ");
+  if (isTempSensorConnected) {
+    display.print(temp, 1);
+    display.print(" C");
+  } else {
+    display.print("Error");
+  }
 
   display.display();
 }
@@ -296,21 +328,23 @@ void setupWiFi() {
   Serial.println("[Wi-Fi] Подключено успешно!");
 }
 
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar) {
+void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp) {
   client.stop();
   Serial.println("\n[ThingSpeak] Подключение к серверу (HTTPS)...");
   if (client.connect(tsServer, 443)) {
     Serial.print("[ThingSpeak] Отправка -> V: "); Serial.print(voltage);
     Serial.print("V, P(PSI): "); Serial.print(pressure);
-    Serial.print(", P(Bar): "); Serial.print(pressureBar); Serial.println(" Bar");
+    Serial.print(", P(Bar): "); Serial.print(pressureBar); 
+    Serial.print(" Bar, T: "); Serial.print(temp); Serial.println(" C");
 
     String url = "/update?api_key=" + tsApiKey + 
                  "&field1=" + String(voltage, 3) + 
                  "&field2=" + String(pressure, 2) +
-                 "&field3=" + String(pressureBar, 2);
+                 "&field3=" + String(pressureBar, 2) +
+                 "&field4=" + String(temp, 2);
 
     String httpRequest;
-    httpRequest.reserve(160);
+    httpRequest.reserve(200);
     httpRequest += "GET " + url + " HTTP/1.1\r\n";
     httpRequest += "Host: " + String(tsServer) + "\r\n";
     httpRequest += "Connection: close\r\n\r\n";
@@ -322,26 +356,29 @@ void sendDataToThingSpeak(float voltage, float pressure, float pressureBar) {
   }
 }
 
-void sendDataToBrewfather(float voltage, float pressure) {
+void sendDataToBrewfather(float voltage, float pressure, float temp) {
   client.stop();
   
   Serial.println("\n[Brewfather] Подключение к серверу для POST...");
 
   if (client.connect(bfServer, 443)) {
     Serial.print("[Brewfather] Отправка -> V: "); Serial.print(voltage);
-    Serial.print("V, P: "); Serial.print(pressure); Serial.println(" PSI");
+    Serial.print("V, P: "); Serial.print(pressure); 
+    Serial.print(" PSI, T: "); Serial.print(temp); Serial.println(" C");
 
     Serial.println("[Brewfather] HTTPS Подключено! Формирование JSON пакета...");
 
     // 1. Формируем тело JSON (с резервированием памяти во избежание фрагментации кучи)
     String jsonBody;
-    jsonBody.reserve(120);
+    jsonBody.reserve(150);
     jsonBody += "{";
     jsonBody += "\"name\":\"" + deviceName + "\",";
     jsonBody += "\"pressure\":" + String(pressure, 2) + ",";
     jsonBody += "\"pressure_unit\":\"PSI\",";
+    jsonBody += "\"temp\":" + String(temp, 2) + ",";
+    jsonBody += "\"temp_unit\":\"C\",";
     jsonBody += "\"battery\":" + String(voltage, 2) + ",";
-    jsonBody += "\"comment\":\"Voltage: " + String(voltage, 2) + "V\"";
+    jsonBody += "\"comment\":\"Voltage: " + String(voltage, 2) + "V, Temp: " + String(temp, 2) + "C\"";
     jsonBody += "}";
     
     Serial.println("[Brewfather] Sending JSON: " + jsonBody);
@@ -349,7 +386,7 @@ void sendDataToBrewfather(float voltage, float pressure) {
     int contentLength = jsonBody.length();
 
     String httpRequest;
-    httpRequest.reserve(280);
+    httpRequest.reserve(300);
     httpRequest += "POST /stream?id=" + bfStreamId + " HTTP/1.1\r\n";
     httpRequest += "Host: " + String(bfServer) + "\r\n";
     httpRequest += "Content-Type: application/json\r\n";
