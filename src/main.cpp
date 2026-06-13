@@ -1,6 +1,7 @@
 #include <Arduino.h>
-#include <SoftwareSerial.h>
-#include "WiFiEsp.h"
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <esp_adc_cal.h>
 
 // Настройки Wi-Fi
 const char* ssid = "Ghost";
@@ -22,82 +23,185 @@ unsigned long lastBrewfatherTime = 0;
 const unsigned long bfInterval = 900000; // 15 минут (900 000 мс) для Brewfather
 
 // Железо
-SoftwareSerial SerialESP(4, 5); 
-int status = WL_IDLE_STATUS;     
-const int sensorPin = A0;        
-WiFiEspClient client;
+const int sensorPin = 34;        // ADC1_CH6 (GPIO 34) - хороший выбор для ESP32
+WiFiClientSecure client;
+
+// Глобальные переменные для обмена данными между ядрами
+float currentVoltage = 0.0;
+float currentPressure = 0.0;
+bool isDataReady = false;
+SemaphoreHandle_t dataMutex; 
+
+esp_adc_cal_characteristics_t adc_chars;
 
 // Прототипы функций
 void setupWiFi();
 void sendDataToThingSpeak(float voltage, float pressure);
 void sendDataToBrewfather(float voltage, float pressure);
+void sensorTask(void *pvParameters);
+void networkTask(void *pvParameters);
 
 void setup() {
-  Serial.begin(9600);   
+  Serial.begin(115200);   
   while (!Serial); 
 
-  setupWiFi();
-  Serial.println("\n--- Система готова к работе ---");
-  
-  // Принудительный первый запуск отправки при старте
-  lastThingSpeakTime = millis() - tsInterval;
-  lastBrewfatherTime = millis() - bfInterval;
+  // Настройка АЦП и чтение калибровки из eFuse
+  analogSetAttenuation(ADC_11db); // Используем ADC_11db, так как ADC_12db еще не объявлена в HAL
+  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &adc_chars);
+
+  // Создаем мьютекс для защиты общих данных
+  dataMutex = xSemaphoreCreateMutex();
+
+  // Задача для чтения сенсора (Core 1)
+  xTaskCreatePinnedToCore(
+    sensorTask,   // Функция задачи
+    "SensorTask", // Имя
+    4096,         // Стек
+    NULL,         // Параметры
+    1,            // Приоритет
+    NULL,         // Хендл
+    1             // Ядро (Core 1)
+  );
+
+  // Задача для Wi-Fi и облаков (Core 0)
+  xTaskCreatePinnedToCore(
+    networkTask,
+    "NetworkTask",
+    8192,         // Больше стека для SSL
+    NULL,
+    1,
+    NULL,
+    0             // Ядро (Core 0)
+  );
+
+  Serial.println("\n--- Система запущена на двух ядрах ---");
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+  // Пустой цикл, всё работает в задачах FreeRTOS
+  vTaskDelete(NULL); 
+}
 
-  // Читаем датчик давления
-  int rawValue = analogRead(sensorPin);
-  float voltage = (rawValue * 4.9) / 1023.0;
-  float pressurePSI = 0.0;
-  
-  if (voltage > 0.44) {
-    pressurePSI = (voltage - 0.44) * 100.0 / (4.5 - 0.44);
-  }
+// --- ЛОГИКА СЕНСОРА (Core 1) ---
+void sensorTask(void *pvParameters) {
+  const int numSamples = 5;
+  int samples[numSamples];
 
-  // ТАЙМЕР 1: Отправка в ThingSpeak (Раз в 15 секунд)
-  if (currentMillis - lastThingSpeakTime >= tsInterval) {
-    lastThingSpeakTime = currentMillis;
+  for (;;) {
+    // 1. Сбор данных для медианного фильтра
+    for (int i = 0; i < numSamples; i++) {
+      samples[i] = analogRead(sensorPin);
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    // 2. Простая сортировка (пузырек) для нахождения медианы
+    for (int i = 0; i < numSamples - 1; i++) {
+      for (int j = 0; j < numSamples - i - 1; j++) {
+        if (samples[j] > samples[j + 1]) {
+          int temp = samples[j];
+          samples[j] = samples[j + 1];
+          samples[j + 1] = temp;
+        }
+      }
+    }
+    int medianRaw = samples[numSamples / 2];
+
+    // 3. Расчет значений
+    // Используем калиброванное преобразование raw -> mV
+    uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(medianRaw, &adc_chars);
+    float vMeasured = voltage_mv / 1000.0; // Напряжение на пине в Вольтах
     
-    Serial.print("\nЛокально -> V: "); Serial.print(voltage);
-    Serial.print("V | P: "); Serial.print(pressurePSI); Serial.println(" PSI");
-    
-    sendDataToThingSpeak(voltage, pressurePSI);
-  }
+    // Коэффициент для делителя 10кОм и 22кОм: (10+22)/22 = 1.4545
+    float vSensor = vMeasured * 1.4545;          // Реальное напряжение на выходе датчика
 
-  // ТАЙМЕР 2: Отправка в Brewfather (Раз в 15 минут!)
-  if (currentMillis - lastBrewfatherTime >= bfInterval) {
-    lastBrewfatherTime = currentMillis;
-    sendDataToBrewfather(voltage, pressurePSI);
+    float p = 0.0;
+    if (vSensor > 0.5) {
+      // Формула для стандартного датчика 0.5V - 4.5V (100 PSI)
+      p = (vSensor - 0.5) * 100.0 / (4.5 - 0.5); 
+    }
+
+    // 4. Сохранение в общие переменные с блокировкой мьютекса
+    if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      currentVoltage = vSensor;
+      currentPressure = p;
+      isDataReady = true; // Данные считаны хотя бы один раз
+      xSemaphoreGive(dataMutex);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(200)); // Частота опроса ~5 Гц
+  }
+}
+
+// --- ЛОГИКА СЕТИ (Core 0) ---
+void networkTask(void *pvParameters) {
+  setupWiFi();
+  client.setInsecure();
+
+  lastThingSpeakTime = millis() - tsInterval;
+  lastBrewfatherTime = millis() - bfInterval;
+
+  for (;;) {
+    unsigned long currentMillis = millis();
+    float vLocal = 0.0, pLocal = 0.0;
+    bool ready = false;
+
+    // Проверка подключения
+    if (WiFi.status() != WL_CONNECTED) {
+      setupWiFi();
+    }
+
+    // Получаем копию данных и статус готовности
+    if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      vLocal = currentVoltage;
+      pLocal = currentPressure;
+      ready = isDataReady;
+      xSemaphoreGive(dataMutex);
+    }
+
+    // Выполняем отправку только если данные уже были считаны сенсором
+    if (ready) {
+        // Отправка в ThingSpeak
+        if (currentMillis - lastThingSpeakTime >= tsInterval) {
+            lastThingSpeakTime = currentMillis;
+            sendDataToThingSpeak(vLocal, pLocal);
+        }
+
+        // Отправка в Brewfather
+        if (currentMillis - lastBrewfatherTime >= bfInterval) {
+            lastBrewfatherTime = currentMillis;
+            sendDataToBrewfather(vLocal, pLocal);
+        }
+    } else {
+        Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Проверка таймеров раз в секунду
   }
 }
 
 void setupWiFi() {
-  SerialESP.begin(9600); 
-  WiFi.init(&SerialESP);
+  Serial.print("Подключение к Wi-Fi: ");
+  Serial.println(ssid);
+  
+  WiFi.begin(ssid, pass);
 
-  if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("Ошибка: Wi-Fi шилд не найден!");
-    while (true); 
-  }
-
-  while (status != WL_CONNECTED) {
-    Serial.print("Подключение к Wi-Fi: ");
-    Serial.println(ssid);
-    status = WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
   Serial.println("[Wi-Fi] Подключено успешно!");
 }
 
 void sendDataToThingSpeak(float voltage, float pressure) {
   client.stop();
-  if (client.connect(tsServer, 80)) {
+  Serial.println("\n[ThingSpeak] Подключение к серверу (HTTPS)...");
+  if (client.connect(tsServer, 443)) {
+    Serial.print("[ThingSpeak] Отправка -> V: "); Serial.print(voltage);
+    Serial.print("V, P: "); Serial.print(pressure); Serial.println(" PSI");
+
     String url = "/update?api_key=" + tsApiKey + 
                  "&field1=" + String(voltage, 2) + 
                  "&field2=" + String(pressure, 2);
 
-    // Сборка запроса в одну строку, чтобы отправить за один раз (одна команда AT+CIPSEND)
     String httpRequest;
     httpRequest.reserve(160);
     httpRequest += "GET " + url + " HTTP/1.1\r\n";
@@ -105,7 +209,9 @@ void sendDataToThingSpeak(float voltage, float pressure) {
     httpRequest += "Connection: close\r\n\r\n";
 
     client.print(httpRequest);
-    Serial.println("[ThingSpeak] Данные ушли.");
+    Serial.println("[ThingSpeak] HTTPS запрос успешно отправлен.");
+  } else {
+    Serial.println("[ThingSpeak] Ошибка HTTPS подключения (порт 443).");
   }
 }
 
@@ -113,9 +219,12 @@ void sendDataToBrewfather(float voltage, float pressure) {
   client.stop();
   
   Serial.println("\n[Brewfather] Подключение к серверу для POST...");
-  
-  if (client.connect(bfServer, 80)) {
-    Serial.println("[Brewfather] Подключено! Формирование JSON пакета...");
+
+  if (client.connect(bfServer, 443)) {
+    Serial.print("[Brewfather] Отправка -> V: "); Serial.print(voltage);
+    Serial.print("V, P: "); Serial.print(pressure); Serial.println(" PSI");
+
+    Serial.println("[Brewfather] HTTPS Подключено! Формирование JSON пакета...");
 
     // 1. Формируем тело JSON (с резервированием памяти во избежание фрагментации кучи)
     String jsonBody;
@@ -129,9 +238,6 @@ void sendDataToBrewfather(float voltage, float pressure) {
     
     int contentLength = jsonBody.length();
 
-    // 2. Собираем весь HTTP-запрос в одну большую строку.
-    // Это критически важно: WiFiEsp отправляет отдельный TCP-пакет (AT+CIPSEND) на каждый вызов client.print().
-    // Сборка в одну строку позволяет отправить всё за один раз, предотвращая тайм-ауты из-за коллизий.
     String httpRequest;
     httpRequest.reserve(280);
     httpRequest += "POST /stream?id=" + bfStreamId + " HTTP/1.1\r\n";
@@ -141,15 +247,11 @@ void sendDataToBrewfather(float voltage, float pressure) {
     httpRequest += "Connection: close\r\n\r\n";
     httpRequest += jsonBody + "\r\n";
 
-    // 3. Отправляем запрос одним вызовом
     client.print(httpRequest);
-
-    // Ожидаем завершения физической передачи данных модулем ESP8266
-    delay(500); 
-    client.flush();
+    client.flush(); // Гарантируем отправку буфера из памяти ESP32
 
     Serial.println("[Brewfather] JSON POST запрос успешно отправлен.");
   } else {
-    Serial.println("[Brewfather] Ошибка подключения по порту 80.");
+    Serial.println("[Brewfather] Ошибка HTTPS подключения (порт 443).");
   }
 }
