@@ -2,6 +2,15 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_adc_cal.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// Настройки OLED
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Настройки Wi-Fi
 const char* ssid = "Ghost";
@@ -29,6 +38,7 @@ WiFiClientSecure client;
 // Глобальные переменные для обмена данными между ядрами
 float currentVoltage = 0.0;
 float currentPressure = 0.0;
+float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
 bool isDataReady = false;
 SemaphoreHandle_t dataMutex; 
 
@@ -38,6 +48,7 @@ esp_adc_cal_characteristics_t adc_chars;
 void setupWiFi();
 void sendDataToThingSpeak(float voltage, float pressure);
 void sendDataToBrewfather(float voltage, float pressure);
+void updateDisplay(String ipStatus, float voltage, float pressureBar);
 void sensorTask(void *pvParameters);
 void networkTask(void *pvParameters);
 
@@ -48,6 +59,18 @@ void setup() {
   // Настройка АЦП и чтение калибровки из eFuse
   analogSetAttenuation(ADC_11db); // Используем ADC_11db, так как ADC_12db еще не объявлена в HAL
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &adc_chars);
+
+  // Инициализация OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("Connecting...");
+  display.display();
 
   // Создаем мьютекс для защиты общих данных
   dataMutex = xSemaphoreCreateMutex();
@@ -121,9 +144,9 @@ void sensorTask(void *pvParameters) {
     float vSensor = vMeasured * 1.4545;          // Реальное напряжение на выходе датчика
 
     float p = 0.0;
-    if (vSensor > 0.5) {
-      // Формула для стандартного датчика 0.5V - 4.5V (100 PSI)
-      p = (vSensor - 0.5) * 100.0 / (4.5 - 0.5); 
+    if (vSensor > offsetVoltage) {
+      // Формула для стандартного датчика с учетом калибровки нуля (offsetVoltage)
+      p = (vSensor - offsetVoltage) * 100.0 / (4.5 - 0.5); 
     }
 
     // Применение адаптивного фильтра EMA
@@ -185,6 +208,14 @@ void networkTask(void *pvParameters) {
       xSemaphoreGive(dataMutex);
     }
 
+    // Обновление дисплея
+    String ipStr = "Connecting...";
+    if (WiFi.status() == WL_CONNECTED) {
+      ipStr = WiFi.localIP().toString();
+    }
+    float pBar = pLocal * 0.0689476;
+    updateDisplay(ipStr, vLocal, pBar);
+
     // Выполняем отправку только если данные уже были считаны сенсором
     if (ready) {
         // Отправка в ThingSpeak
@@ -203,6 +234,49 @@ void networkTask(void *pvParameters) {
     }
     vTaskDelay(pdMS_TO_TICKS(1000)); // Проверка таймеров раз в секунду
   }
+}
+
+void updateDisplay(String ipStatus, float voltage, float pressureBar) {
+  display.clearDisplay();
+
+  // 1. Желтая зона (верхние 16 пикселей)
+  display.setTextSize(1); // Шрифт размера 2 (16px) заполняет всю высоту зоны 0-15px, используем 1 для читаемости
+  display.setTextColor(SSD1306_WHITE);
+  
+  if (ipStatus == "Connecting...") {
+      display.setCursor(0, 0);
+      display.print(ipStatus);
+  } else {
+      // IP на левом краю
+      display.setCursor(0, 0);
+      display.print(ipStatus);
+      
+      // Вольтаж на правом краю
+      String voltStr = String(voltage, 2) + " V";
+      int16_t x1, y1;
+      uint16_t w, h;
+      display.getTextBounds(voltStr, 0, 0, &x1, &y1, &w, &h);
+      display.setCursor(128 - w, 0);
+      display.print(voltStr);
+  }
+  display.drawLine(0, 15, 127, 15, SSD1306_WHITE);
+
+  // 2. Синяя зона (нижние 48 пикселей)
+  display.setTextSize(3);
+  display.setCursor(5, 25);
+  if (pressureBar < 10.0) {
+    display.print(pressureBar, 2);
+  } else if (pressureBar < 100.0) {
+    display.print(pressureBar, 1);
+  } else {
+    display.print((int)pressureBar);
+  }
+
+  display.setTextSize(2); // Увеличенный шрифт для "Bar"
+  display.setCursor(85, 33); // Позиция "Bar" (поднято для выравнивания по низу с цифрами)
+  display.print("Bar");
+
+  display.display();
 }
 
 void setupWiFi() {
