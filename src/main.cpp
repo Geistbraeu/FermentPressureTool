@@ -34,7 +34,7 @@ const String deviceName = "Pressure_Sensor"; // Имя вашего датчик
 
 // Таймеры (миллисекунды)
 unsigned long lastThingSpeakTime = 0;
-const unsigned long tsInterval = 15000; // 15 секунд для ThingSpeak
+const unsigned long tsInterval = 120000; // 120 секунд для ThingSpeak
 
 unsigned long lastBrewfatherTime = 0;
 const unsigned long bfInterval = 900000; // 15 минут (900 000 мс) для Brewfather
@@ -84,7 +84,7 @@ void setup() {
   }
 
   // Инициализация MAX31865
-  tempSensor.begin(MAX31865_3WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
+  tempSensor.begin(MAX31865_2WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
 
   // Создаем мьютекс для защиты общих данных
   dataMutex = xSemaphoreCreateMutex();
