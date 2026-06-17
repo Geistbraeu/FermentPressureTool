@@ -6,11 +6,15 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_MAX31865.h>
+#include <ESPmDNS.h>
+#include <Preferences.h>
+#include "web_server.h"
 
 // Настройки OLED
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET    -1
+#define HOSTNAME      "ferment-01"
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool isOledConnected = false;
 
@@ -47,6 +51,7 @@ WiFiClientSecure client;
 float currentVoltage = 0.0;
 float currentPressure = 0.0;
 float currentTemp = 0.0;
+float maxPressureThreshold = 14.0; // Порог давления
 float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
 float tempOffset = 0.5;      // Смещение температуры для компенсации сопротивления проводов (в °C)
 bool isDataReady = false;
@@ -83,11 +88,29 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed (no OLED connected)"));
   }
 
+  // Инициализация Wi-Fi
+  setupWiFi();
+
+  // Инициализация mDNS
+  if (MDNS.begin(HOSTNAME)) {
+    Serial.println("mDNS responder started");
+  }
+
   // Инициализация MAX31865
   // tempSensor.begin(MAX31865_2WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
 
+  // Чтение настроек
+  Preferences prefs;
+  prefs.begin("config", true);
+  maxPressureThreshold = prefs.getFloat("maxPressure", 100.0);
+  offsetVoltage = prefs.getFloat("offsetVoltage", 0.515);
+  prefs.end();
+
   // Создаем мьютекс для защиты общих данных
   dataMutex = xSemaphoreCreateMutex();
+
+  // Инициализация веб-сервера
+  initWebServer();
 
   // Задача для чтения сенсора (Core 1)
   xTaskCreatePinnedToCore(
@@ -209,7 +232,6 @@ void sensorTask(void *pvParameters) {
 
 // --- ЛОГИКА СЕТИ (Core 0) ---
 void networkTask(void *pvParameters) {
-  setupWiFi();
   client.setInsecure();
 
   lastThingSpeakTime = millis() - tsInterval;
