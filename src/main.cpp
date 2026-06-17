@@ -38,10 +38,7 @@ const String deviceName = "Pressure_Sensor"; // Имя вашего датчик
 
 // Таймеры (миллисекунды)
 unsigned long lastThingSpeakTime = 0;
-const unsigned long tsInterval = 120000; // 120 секунд для ThingSpeak
-
 unsigned long lastBrewfatherTime = 0;
-const unsigned long bfInterval = 900000; // 15 минут (900 000 мс) для Brewfather
 
 // Железо
 const int sensorPin = 34;        // ADC1_CH6 (GPIO 34) - хороший выбор для ESP32
@@ -52,6 +49,10 @@ float currentVoltage = 0.0;
 float currentPressure = 0.0;
 float currentTemp = 0.0;
 float maxPressureThreshold = 14.0; // Порог давления
+float hysteresis = 0.5;
+unsigned long sensorInterval = 200;
+unsigned long tsIntervalSeconds = 120;
+unsigned long bfIntervalMinutes = 15;
 float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
 float tempOffset = 0.5;      // Смещение температуры для компенсации сопротивления проводов (в °C)
 bool manualOverride = false;
@@ -114,7 +115,11 @@ void setup() {
   // Чтение настроек
   Preferences prefs;
   prefs.begin("config", true);
-  maxPressureThreshold = prefs.getFloat("maxPressure", 100.0);
+  maxPressureThreshold = prefs.getFloat("maxPressure", 14.0);
+  hysteresis = prefs.getFloat("hysteresis", 0.5);
+  sensorInterval = prefs.getULong("sInterval", 200);
+  tsIntervalSeconds = prefs.getULong("tsInterval", 120);
+  bfIntervalMinutes = prefs.getULong("bfInterval", 15);
   offsetVoltage = prefs.getFloat("offsetVoltage", 0.515);
   prefs.end();
 
@@ -244,7 +249,6 @@ void sensorTask(void *pvParameters) {
       if (manualOverride) {
           digitalWrite(SOLENOID_PIN, manualOn ? HIGH : LOW);
       } else {
-          const float hysteresis = 0.5; // гистерезис 0.5 PSI
           if (filteredPressure > maxPressureThreshold) {
               digitalWrite(SOLENOID_PIN, HIGH);
           } else if (filteredPressure < (maxPressureThreshold - hysteresis)) {
@@ -254,7 +258,7 @@ void sensorTask(void *pvParameters) {
       xSemaphoreGive(dataMutex);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(200));
+    vTaskDelay(pdMS_TO_TICKS(sensorInterval));
   }
 }
 
@@ -262,8 +266,8 @@ void sensorTask(void *pvParameters) {
 void networkTask(void *pvParameters) {
   client.setInsecure();
 
-  lastThingSpeakTime = millis() - tsInterval;
-  lastBrewfatherTime = millis() - bfInterval;
+  lastThingSpeakTime = millis() - (tsIntervalSeconds * 1000);
+  lastBrewfatherTime = millis() - (bfIntervalMinutes * 60000);
 
   for (;;) {
     unsigned long currentMillis = millis();
@@ -295,13 +299,13 @@ void networkTask(void *pvParameters) {
     // Выполняем отправку только если данные уже были считаны сенсором
     if (ready) {
         // Отправка в ThingSpeak
-        if (currentMillis - lastThingSpeakTime >= tsInterval) {
+        if (currentMillis - lastThingSpeakTime >= (tsIntervalSeconds * 1000)) {
             lastThingSpeakTime = currentMillis;
             sendDataToThingSpeak(vLocal, pLocal, pBar, 0.0);
         }
 
         // Отправка в Brewfather
-        if (currentMillis - lastBrewfatherTime >= bfInterval) {
+        if (currentMillis - lastBrewfatherTime >= (bfIntervalMinutes * 60000)) {
             lastBrewfatherTime = currentMillis;
             sendDataToBrewfather(vLocal, pLocal, 0.0);
         }

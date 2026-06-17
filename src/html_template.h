@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
-String getHtml(float p, float v, bool mOverride, bool mOn, unsigned long mStart, float maxPressureThreshold, float offsetVoltage) {
+String getHtml(float p, float v, bool mOverride, bool mOn, unsigned long mStart, float maxPressureThreshold, float hysteresis, unsigned long sensorInterval, unsigned long tsIntervalSeconds, unsigned long bfIntervalMinutes, float offsetVoltage) {
     String html = "<html><body>";
     html += "<h1>Pressure Sensor (" + String(HOSTNAME) + ")</h1>";
     html += "<p>IP Address: " + WiFi.localIP().toString() + "</p>";
@@ -42,13 +42,24 @@ String getHtml(float p, float v, bool mOverride, bool mOn, unsigned long mStart,
     html += "<input type='hidden' name='cmd' value='manual_off'>";
     html += "<input type='submit' value='Manual Close/Auto'></form><br>";
 
-    html += "<p>Max Pressure Threshold: " + String(maxPressureThreshold, 2) + " PSI</p>";
+    html += "<p>Settings:</p>";
     html += "<form action='/api' method='POST'>";
-    html += "New Max Pressure: <input type='number' step='0.1' name='pressure'> <input type='submit' value='Set'><br>";
+    html += "Max Pressure Threshold (PSI): <input type='number' step='0.1' name='pressure' value='" + String(maxPressureThreshold, 1) + "'> <input type='submit' value='Set'><br>";
     html += "</form>";
-    html += "<p>Voltage Offset: " + String(offsetVoltage, 3) + " V</p>";
     html += "<form action='/api' method='POST'>";
-    html += "New Voltage Offset: <input type='number' step='0.001' name='offset'> <input type='submit' value='Set'><br>";
+    html += "Hysteresis (PSI): <input type='number' step='0.1' name='hysteresis' value='" + String(hysteresis, 1) + "'> <input type='submit' value='Set'><br>";
+    html += "</form>";
+    html += "<form action='/api' method='POST'>";
+    html += "Sensor Interval (ms): <input type='number' name='sInterval' value='" + String(sensorInterval) + "'> <input type='submit' value='Set'><br>";
+    html += "</form>";
+    html += "<form action='/api' method='POST'>";
+    html += "ThingSpeak Interval (s, min 15): <input type='number' name='tsInterval' value='" + String(tsIntervalSeconds) + "'> <input type='submit' value='Set'><br>";
+    html += "</form>";
+    html += "<form action='/api' method='POST'>";
+    html += "Brewfather Interval (min, min 15): <input type='number' name='bfInterval' value='" + String(bfIntervalMinutes) + "'> <input type='submit' value='Set'><br>";
+    html += "</form>";
+    html += "<form action='/api' method='POST'>";
+    html += "Voltage Offset (V): <input type='number' step='0.001' name='offset' value='" + String(offsetVoltage, 3) + "'> <input type='submit' value='Set'><br>";
     html += "</form>";
     html += "</body></html>";
     return html;

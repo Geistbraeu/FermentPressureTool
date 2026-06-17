@@ -10,6 +10,10 @@ extern float currentVoltage;
 extern float currentPressure;
 extern SemaphoreHandle_t dataMutex;
 extern float maxPressureThreshold;
+extern float hysteresis;
+extern unsigned long sensorInterval;
+extern unsigned long tsIntervalSeconds;
+extern unsigned long bfIntervalMinutes;
 extern float offsetVoltage;
 extern bool manualOverride;
 extern bool manualOn;
@@ -30,7 +34,7 @@ void handleRoot() {
         xSemaphoreGive(dataMutex);
     }
     
-    server.send(200, "text/html", getHtml(p, v, mOverride, mOn, mStart, maxPressureThreshold, offsetVoltage));
+    server.send(200, "text/html", getHtml(p, v, mOverride, mOn, mStart, maxPressureThreshold, hysteresis, sensorInterval, tsIntervalSeconds, bfIntervalMinutes, offsetVoltage));
 }
 
 void handleApi() {
@@ -76,6 +80,36 @@ void handleApi() {
             Preferences prefs;
             prefs.begin("config", false);
             prefs.putFloat("maxPressure", maxPressureThreshold);
+            prefs.end();
+        }
+        if (server.hasArg("hysteresis")) {
+            hysteresis = server.arg("hysteresis").toFloat();
+            Preferences prefs;
+            prefs.begin("config", false);
+            prefs.putFloat("hysteresis", hysteresis);
+            prefs.end();
+        }
+        if (server.hasArg("sInterval")) {
+            sensorInterval = server.arg("sInterval").toInt();
+            Preferences prefs;
+            prefs.begin("config", false);
+            prefs.putULong("sInterval", sensorInterval);
+            prefs.end();
+        }
+        if (server.hasArg("tsInterval")) {
+            tsIntervalSeconds = server.arg("tsInterval").toInt();
+            if (tsIntervalSeconds < 15) tsIntervalSeconds = 15;
+            Preferences prefs;
+            prefs.begin("config", false);
+            prefs.putULong("tsInterval", tsIntervalSeconds);
+            prefs.end();
+        }
+        if (server.hasArg("bfInterval")) {
+            bfIntervalMinutes = server.arg("bfInterval").toInt();
+            if (bfIntervalMinutes < 15) bfIntervalMinutes = 15;
+            Preferences prefs;
+            prefs.begin("config", false);
+            prefs.putULong("bfInterval", bfIntervalMinutes);
             prefs.end();
         }
         if (server.hasArg("offset")) {
