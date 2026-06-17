@@ -14,6 +14,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET    -1
+#define SOLENOID_PIN  27
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool isOledConnected = false;
 
@@ -53,6 +54,9 @@ float currentTemp = 0.0;
 float maxPressureThreshold = 14.0; // Порог давления
 float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
 float tempOffset = 0.5;      // Смещение температуры для компенсации сопротивления проводов (в °C)
+bool manualOverride = false;
+bool manualOn = false;
+unsigned long manualStartTime = 0;
 bool isDataReady = false;
 bool isTempSensorConnected = false;
 SemaphoreHandle_t dataMutex; 
@@ -89,6 +93,10 @@ void setup() {
 
   // Инициализация Wi-Fi
   setupWiFi();
+
+  // Инициализация клапана
+  pinMode(SOLENOID_PIN, OUTPUT);
+  digitalWrite(SOLENOID_PIN, LOW);
 
   // Инициализация mDNS
   if (!MDNS.begin(HOSTNAME)) {
@@ -227,6 +235,22 @@ void sensorTask(void *pvParameters) {
       currentPressure = filteredPressure;
       currentTemp = t; // Сохраняем температуру
       isDataReady = true;
+
+      // Логика управления клапаном
+      if (manualOverride && (millis() - manualStartTime > 10000)) {
+          manualOverride = false;
+      }
+      
+      if (manualOverride) {
+          digitalWrite(SOLENOID_PIN, manualOn ? HIGH : LOW);
+      } else {
+          const float hysteresis = 0.5; // гистерезис 0.5 PSI
+          if (filteredPressure > maxPressureThreshold) {
+              digitalWrite(SOLENOID_PIN, HIGH);
+          } else if (filteredPressure < (maxPressureThreshold - hysteresis)) {
+              digitalWrite(SOLENOID_PIN, LOW);
+          }
+      }
       xSemaphoreGive(dataMutex);
     }
 
