@@ -84,7 +84,7 @@ void setup() {
   }
 
   // Инициализация MAX31865
-  tempSensor.begin(MAX31865_2WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
+  // tempSensor.begin(MAX31865_2WIRE);  // Настройка для 3-проводного датчика, измените если 2 или 4
 
   // Создаем мьютекс для защиты общих данных
   dataMutex = xSemaphoreCreateMutex();
@@ -159,22 +159,24 @@ void sensorTask(void *pvParameters) {
       p = (vSensor - offsetVoltage) * 100.0 / (4.5 - 0.5); 
     }
 
-    // 4. Чтение температуры
-    uint16_t fault = tempSensor.readFault();
+    // 4. Чтение температуры (отключено)
+    // uint16_t fault = tempSensor.readFault();
+    // float t = 0.0;
+    // if (fault) {
+    //   Serial.print("MAX31865 Fault: "); Serial.println(fault);
+    //   tempSensor.clearFault();
+    //   isTempSensorConnected = false;
+    // } else {
+    //   t = tempSensor.temperature(RNOMINAL, RREF);
+    //   if (t < -100.0) {
+    //     isTempSensorConnected = false;
+    //   } else {
+    //     t = t - tempOffset;
+    //     isTempSensorConnected = true;
+    //   }
+    // }
     float t = 0.0;
-    if (fault) {
-      Serial.print("MAX31865 Fault: "); Serial.println(fault);
-      tempSensor.clearFault();
-      isTempSensorConnected = false;
-    } else {
-      t = tempSensor.temperature(RNOMINAL, RREF);
-      if (t < -100.0) {
-        isTempSensorConnected = false;
-      } else {
-        t = t - tempOffset;
-        isTempSensorConnected = true;
-      }
-    }
+    isTempSensorConnected = false;
 
     // Применение адаптивного фильтра (для давления)
     if (filteredVoltage < 0) {
@@ -245,13 +247,13 @@ void networkTask(void *pvParameters) {
         // Отправка в ThingSpeak
         if (currentMillis - lastThingSpeakTime >= tsInterval) {
             lastThingSpeakTime = currentMillis;
-            sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
+            sendDataToThingSpeak(vLocal, pLocal, pBar, 0.0);
         }
 
         // Отправка в Brewfather
         if (currentMillis - lastBrewfatherTime >= bfInterval) {
             lastBrewfatherTime = currentMillis;
-            sendDataToBrewfather(vLocal, pLocal, tLocal);
+            sendDataToBrewfather(vLocal, pLocal, 0.0);
         }
     } else {
         Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
@@ -302,15 +304,15 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp
   display.print("Bar");
 
   // Нижняя 1/4 (y=49-63) - Температура
-  display.setTextSize(1);
-  display.setCursor(5, 52);
-  display.print("Temp: ");
-  if (isTempSensorConnected) {
-    display.print(temp, 1);
-    display.print(" C");
-  } else {
-    display.print("Error");
-  }
+  // display.setTextSize(1);
+  // display.setCursor(5, 52);
+  // display.print("Temp: ");
+  // if (isTempSensorConnected) {
+  //   display.print(temp, 1);
+  //   display.print(" C");
+  // } else {
+  //   display.print("Error");
+  // }
 
   display.display();
 }
