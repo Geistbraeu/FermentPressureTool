@@ -7,9 +7,10 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_MAX31865.h>
 #include <ESPmDNS.h>
-#include <Preferences.h>
 #include "ConfigPortal.h"
 #include "web_server.h"
+#include "CloudManager.h"
+#include "Settings.h"
 
 // Настройки OLED
 #define SCREEN_WIDTH 128
@@ -27,37 +28,19 @@ Adafruit_MAX31865 tempSensor = Adafruit_MAX31865(MAX31865_CS_PIN, 23, 19, 18);
 #define RREF      430.0
 #define RNOMINAL  100.0
 
-// Настройки Облаков
-const char* tsServer = "api.thingspeak.com";
-const String tsApiKey = "DEXTOPQCD39G16GW";
 
-const char* bfServer = "log.brewfather.net";
-const String bfStreamId = "b8wwXJ3xdW3B8h"; 
-const String deviceName = "Pressure_Sensor"; // Имя вашего датчика в Brewfather
 
-// Таймеры (миллисекунды)
-unsigned long lastThingSpeakTime = 0;
-unsigned long lastBrewfatherTime = 0;
 
 // Железо
 const int sensorPin = 34;        // ADC1_CH6 (GPIO 34) - хороший выбор для ESP32
-WiFiClientSecure client;
 
 // Глобальные переменные для обмена данными между ядрами
 float currentVoltage = 0.0;
 float currentPressure = 0.0;
 float currentTemp = 0.0;
-float maxPressureThreshold = 14.0; // Порог давления
-int pressureUnit = 0; // 0 = PSI, 1 = Bar
-float hysteresis = 0.5;
-unsigned long sensorInterval = 200;
-unsigned long tsIntervalSeconds = 120;
-unsigned long bfIntervalMinutes = 15;
-float offsetVoltage = 0.515; // Для калибровки нуля, если нужно
 float tempOffset = 0.5;      // Смещение температуры для компенсации сопротивления проводов (в °C)
 bool manualOverride = false;
 bool manualOn = false;
-bool useTempSensor = true; // Глобальный флаг использования датчика температуры
 unsigned long manualStartTime = 0;
 bool isDataReady = false;
 bool isTempSensorConnected = false;
@@ -65,8 +48,6 @@ SemaphoreHandle_t dataMutex;
 esp_adc_cal_characteristics_t adc_chars;
 
 // Прототипы функций
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp);
-void sendDataToBrewfather(float voltage, float pressure, float temp);
 void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp);
 void sensorTask(void *pvParameters);
 void networkTask(void *pvParameters);
@@ -110,20 +91,10 @@ void setup() {
  
 
   // Чтение настроек
-  Preferences prefs;
-  prefs.begin("config", true);
-  maxPressureThreshold = prefs.getFloat("maxPressure", 14.0);
-  pressureUnit = prefs.getInt("pUnit", 0);
-  hysteresis = prefs.getFloat("hysteresis", 0.5);
-  sensorInterval = prefs.getULong("sInterval", 200);
-  tsIntervalSeconds = prefs.getULong("tsInterval", 120);
-  bfIntervalMinutes = prefs.getULong("bfInterval", 15);
-  offsetVoltage = prefs.getFloat("offsetVoltage", 0.515);
-  useTempSensor = prefs.getBool("useTemp", true);
-  prefs.end();
+  settings.load();
 
   // Инициализация MAX31865
-  if (useTempSensor) {
+  if (settings.useTempSensor) {
     tempSensor.begin(MAX31865_2WIRE);
   }
 
@@ -220,13 +191,13 @@ void sensorTask(void *pvParameters) {
     float vSensor = vMeasured * 1.4545;
 
     float p = 0.0;
-    if (vSensor > offsetVoltage) {
-      p = (vSensor - offsetVoltage) * 100.0 / (4.5 - 0.5); 
+    if (vSensor > settings.offsetVoltage) {
+      p = (vSensor - settings.offsetVoltage) * 100.0 / (4.5 - 0.5); 
     }
 
     // 4. Чтение температуры
     float t = 0.0;
-    if (useTempSensor) {
+    if (settings.useTempSensor) {
       t = readTemperature(true);
     } else {
       isTempSensorConnected = false;
@@ -247,28 +218,24 @@ void sensorTask(void *pvParameters) {
       if (manualOverride) {
           digitalWrite(SOLENOID_PIN, manualOn ? HIGH : LOW);
       } else {
-          if (currentPressure > maxPressureThreshold) {
+          if (currentPressure > settings.maxPressureThreshold) {
               digitalWrite(SOLENOID_PIN, HIGH);
-          } else if (currentPressure < (maxPressureThreshold - hysteresis)) {
+          } else if (currentPressure < (settings.maxPressureThreshold - settings.hysteresis)) {
               digitalWrite(SOLENOID_PIN, LOW);
           }
       }
       xSemaphoreGive(dataMutex);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(sensorInterval));
+    vTaskDelay(pdMS_TO_TICKS(settings.sensorInterval));
   }
 }
 
 // --- ЛОГИКА СЕТИ (Core 0) ---
 void networkTask(void *pvParameters) {
-  client.setInsecure();
-
-  lastThingSpeakTime = millis() - (tsIntervalSeconds * 1000);
-  lastBrewfatherTime = millis() - (bfIntervalMinutes * 60000);
+  initCloud();
 
   for (;;) {
-    unsigned long currentMillis = millis();
     float vLocal = 0.0, pLocal = 0.0, tLocal = 0.0;
     bool ready = false;
 
@@ -296,17 +263,8 @@ void networkTask(void *pvParameters) {
 
     // Выполняем отправку только если данные уже были считаны сенсором
     if (ready) {
-        // Отправка в ThingSpeak
-        if (currentMillis - lastThingSpeakTime >= (tsIntervalSeconds * 1000)) {
-            lastThingSpeakTime = currentMillis;
-            sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
-        }
-
-        // Отправка в Brewfather
-        if (currentMillis - lastBrewfatherTime >= (bfIntervalMinutes * 60000)) {
-            lastBrewfatherTime = currentMillis;
-            sendDataToBrewfather(vLocal, pLocal, tLocal);
-        }
+        sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
+        sendDataToBrewfather(vLocal, pLocal, tLocal);
     } else {
         Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
     }
@@ -325,10 +283,10 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp
   display.setCursor(0, 0);
   display.print(HOSTNAME);
   
-  float pDisplay = (pressureUnit == 0) ? (pressureBar / 0.0689476) : pressureBar;
-  String unitStr = (pressureUnit == 0) ? "PSI" : "Bar";
+  float pDisplay = (settings.pressureUnit == 0) ? (pressureBar / 0.0689476) : pressureBar;
+  String unitStr = (settings.pressureUnit == 0) ? "PSI" : "Bar";
   
-  float maxPVal = (pressureUnit == 0) ? maxPressureThreshold : (maxPressureThreshold * 0.0689476);
+  float maxPVal = (settings.pressureUnit == 0) ? settings.maxPressureThreshold : (settings.maxPressureThreshold * 0.0689476);
   String maxPStr = String(maxPVal, 1) + " " + unitStr;
   
   int16_t x1, y1; uint16_t w, h;
@@ -367,95 +325,4 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp
 
   display.display();
 }
-
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp) {
-  client.stop();
-  Serial.println("\n[ThingSpeak] Подключение к серверу (HTTPS)...");
-  if (client.connect(tsServer, 443)) {
-    Serial.print("[ThingSpeak] Отправка -> V: "); Serial.print(voltage);
-    Serial.print("V, P(PSI): "); Serial.print(pressure);
-    Serial.print(", P(Bar): "); Serial.print(pressureBar); 
-    if (useTempSensor) {
-      Serial.print(" Bar, T: "); Serial.print(temp); Serial.println(" C");
-    } else {
-      Serial.println(" Bar");
-    }
-
-    String url = "/update?api_key=" + tsApiKey + 
-                 "&field1=" + String(voltage, 3) + 
-                 "&field2=" + String(pressure, 2) +
-                 "&field3=" + String(pressureBar, 2);
-    
-    if (useTempSensor) {
-        url += "&field4=" + String(temp, 2);
-    }
-
-    String httpRequest;
-    httpRequest.reserve(200);
-    httpRequest += "GET " + url + " HTTP/1.1\r\n";
-    httpRequest += "Host: " + String(tsServer) + "\r\n";
-    httpRequest += "Connection: close\r\n\r\n";
-
-    client.print(httpRequest);
-    Serial.println("[ThingSpeak] HTTPS запрос успешно отправлен.");
-  } else {
-    Serial.println("[ThingSpeak] Ошибка HTTPS подключения (порт 443).");
-  }
-}
-
-void sendDataToBrewfather(float voltage, float pressure, float temp) {
-  client.stop();
-  
-  Serial.println("\n[Brewfather] Подключение к серверу для POST...");
-
-  if (client.connect(bfServer, 443)) {
-    Serial.print("[Brewfather] Отправка -> V: "); Serial.print(voltage);
-    Serial.print("V, P: "); Serial.print(pressure); 
-    if (useTempSensor) {
-        Serial.print(" PSI, T: "); Serial.print(temp); Serial.println(" C");
-    } else {
-        Serial.println(" PSI");
-    }
-
-    Serial.println("[Brewfather] HTTPS Подключено! Формирование JSON пакета...");
-
-    // 1. Формируем тело JSON (с резервированием памяти во избежание фрагментации кучи)
-    String jsonBody;
-    jsonBody.reserve(200);
-    jsonBody += "{";
-    jsonBody += "\"name\":\"" + deviceName + "\",";
-    jsonBody += "\"pressure\":" + String(pressure, 2) + ",";
-    jsonBody += "\"pressure_unit\":\"PSI\",";
-    if (useTempSensor) {
-        jsonBody += "\"temp\":" + String(temp, 2) + ",";
-        jsonBody += "\"temp_unit\":\"C\",";
-    }
-    jsonBody += "\"battery\":" + String(voltage, 2) + ",";
-    jsonBody += "\"comment\":\"Voltage: " + String(voltage, 2) + "V";
-    if (useTempSensor) {
-        jsonBody += ", Temp: " + String(temp, 2) + "C";
-    }
-    jsonBody += "\"";
-    jsonBody += "}";
-    
-    Serial.println("[Brewfather] Sending JSON: " + jsonBody);
-    
-    int contentLength = jsonBody.length();
-
-    String httpRequest;
-    httpRequest.reserve(300);
-    httpRequest += "POST /stream?id=" + bfStreamId + " HTTP/1.1\r\n";
-    httpRequest += "Host: " + String(bfServer) + "\r\n";
-    httpRequest += "Content-Type: application/json\r\n";
-    httpRequest += "Content-Length: " + String(contentLength) + "\r\n";
-    httpRequest += "Connection: close\r\n\r\n";
-    httpRequest += jsonBody + "\r\n";
-
-    client.print(httpRequest);
-    client.flush(); // Гарантируем отправку буфера из памяти ESP32
-
-    Serial.println("[Brewfather] JSON POST запрос успешно отправлен.");
-  } else {
-    Serial.println("[Brewfather] Ошибка HTTPS подключения (порт 443).");
-  }
-}
+

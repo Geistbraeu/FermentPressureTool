@@ -2,8 +2,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
-#include <Preferences.h>
 #include <Adafruit_SSD1306.h>
+#include "Settings.h"
 
 extern Adafruit_SSD1306 display;
 extern bool isOledConnected;
@@ -25,12 +25,11 @@ static void handleRoot() {
 
 static void handleSave() {
     if (portalServer.hasArg("ssid") && portalServer.hasArg("pass") && portalServer.hasArg("devName")) {
-        Preferences prefs;
-        prefs.begin("wifi_conf", false);
-        prefs.putString("ssid", portalServer.arg("ssid"));
-        prefs.putString("pass", portalServer.arg("pass"));
-        prefs.putString("devName", portalServer.arg("devName"));
-        prefs.end();
+        wifiSettings.save(
+            portalServer.arg("ssid"),
+            portalServer.arg("pass"),
+            portalServer.arg("devName")
+        );
 
         portalServer.send(200, "text/html", "Settings saved. Restarting...");
         delay(1000);
@@ -41,18 +40,13 @@ static void handleSave() {
 }
 
 bool ConfigPortal::connect() {
-    Preferences prefs;
-    prefs.begin("wifi_conf", true);
-    String ssid = prefs.getString("ssid", "");
-    String pass = prefs.getString("pass", "");
-    String devName = prefs.getString("devName", "ferment01");
-    prefs.end();
+    wifiSettings.load();
 
-    if (ssid == "") return false;
+    if (wifiSettings.ssid == "") return false;
 
     WiFi.disconnect();
-    WiFi.setHostname(devName.c_str());
-    WiFi.begin(ssid.c_str(), pass.c_str());
+    WiFi.setHostname(wifiSettings.devName.c_str());
+    WiFi.begin(wifiSettings.ssid.c_str(), wifiSettings.pass.c_str());
     
     // Wait up to 10 seconds for connection
     for (int i = 0; i < 20; i++) {

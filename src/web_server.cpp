@@ -2,24 +2,17 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <Preferences.h>
 #include "web_server.h"
 #include "html_template.h"
+#include "Settings.h"
 
 extern float currentVoltage;
 extern float currentPressure;
 extern SemaphoreHandle_t dataMutex;
-extern float maxPressureThreshold;
-extern int pressureUnit;
-extern float hysteresis;
-extern unsigned long sensorInterval;
-extern unsigned long tsIntervalSeconds;
-extern unsigned long bfIntervalMinutes;
-extern float offsetVoltage;
 extern bool manualOverride;
 extern bool manualOn;
 extern unsigned long manualStartTime;
-extern bool useTempSensor;
+
 
 
 WebServer server(80);
@@ -37,7 +30,7 @@ void handleRoot() {
         xSemaphoreGive(dataMutex);
     }
     
-    server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart, maxPressureThreshold, pressureUnit, hysteresis, sensorInterval, tsIntervalSeconds, bfIntervalMinutes, offsetVoltage, useTempSensor));
+    server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart, settings.maxPressureThreshold, settings.pressureUnit, settings.hysteresis, settings.sensorInterval, settings.tsIntervalSeconds, settings.bfIntervalMinutes, settings.offsetVoltage, settings.useTempSensor));
 }
 
 void handleApi() {
@@ -61,10 +54,10 @@ void handleApi() {
         
         String json = "{\"pressure\":" + String(p, 2) + 
                        ",\"voltage\":" + String(v, 2) + 
-                       ",\"maxPressure\":" + String(maxPressureThreshold, 2) + 
-                       ",\"pressureUnit\":" + String(pressureUnit) +
-                       ",\"offsetVoltage\":" + String(offsetVoltage, 3) + 
-                       ",\"useTempSensor\":" + (useTempSensor ? "true" : "false") +
+                       ",\"maxPressure\":" + String(settings.maxPressureThreshold, 2) + 
+                       ",\"pressureUnit\":" + String(settings.pressureUnit) +
+                       ",\"offsetVoltage\":" + String(settings.offsetVoltage, 3) + 
+                       ",\"useTempSensor\":" + (settings.useTempSensor ? "true" : "false") +
                        ",\"manualOverride\":" + (mOverride ? "true" : "false") +
                        ",\"manualOn\":" + (mOn ? "true" : "false") +
                        ",\"remainingTime\":" + String(remaining) + "}";
@@ -81,62 +74,32 @@ void handleApi() {
             }
         }
         if (server.hasArg("pressure")) {
-            maxPressureThreshold = server.arg("pressure").toFloat();
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putFloat("maxPressure", maxPressureThreshold);
-            prefs.end();
+            settings.setMaxPressureThreshold(server.arg("pressure").toFloat());
         }
         if (server.hasArg("pUnit")) {
-            pressureUnit = server.arg("pUnit").toInt();
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putInt("pUnit", pressureUnit);
-            prefs.end();
+            settings.setPressureUnit(server.arg("pUnit").toInt());
         }
         if (server.hasArg("hysteresis")) {
-            hysteresis = server.arg("hysteresis").toFloat();
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putFloat("hysteresis", hysteresis);
-            prefs.end();
+            settings.setHysteresis(server.arg("hysteresis").toFloat());
         }
         if (server.hasArg("sInterval")) {
-            sensorInterval = server.arg("sInterval").toInt();
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putULong("sInterval", sensorInterval);
-            prefs.end();
+            settings.setSensorInterval(server.arg("sInterval").toInt());
         }
         if (server.hasArg("tsInterval")) {
-            tsIntervalSeconds = server.arg("tsInterval").toInt();
-            if (tsIntervalSeconds < 15) tsIntervalSeconds = 15;
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putULong("tsInterval", tsIntervalSeconds);
-            prefs.end();
+            unsigned long val = server.arg("tsInterval").toInt();
+            if (val < 15) val = 15;
+            settings.setTsIntervalSeconds(val);
         }
         if (server.hasArg("bfInterval")) {
-            bfIntervalMinutes = server.arg("bfInterval").toInt();
-            if (bfIntervalMinutes < 15) bfIntervalMinutes = 15;
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putULong("bfInterval", bfIntervalMinutes);
-            prefs.end();
+            unsigned long val = server.arg("bfInterval").toInt();
+            if (val < 15) val = 15;
+            settings.setBfIntervalMinutes(val);
         }
         if (server.hasArg("offset")) {
-            offsetVoltage = server.arg("offset").toFloat();
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putFloat("offsetVoltage", offsetVoltage);
-            prefs.end();
+            settings.setOffsetVoltage(server.arg("offset").toFloat());
         }
         if (server.hasArg("useTemp")) {
-            useTempSensor = server.arg("useTemp").toInt() == 1;
-            Preferences prefs;
-            prefs.begin("config", false);
-            prefs.putBool("useTemp", useTempSensor);
-            prefs.end();
+            settings.setUseTempSensor(server.arg("useTemp").toInt() == 1);
         }
         server.sendHeader("Location", "/", true);
         server.send(303, "text/plain", "OK");
