@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
-String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsigned long mStart, float maxPressureThreshold, int pressureUnit, float hysteresis, unsigned long sensorInterval, unsigned long tsIntervalSeconds, unsigned long bfIntervalMinutes, float offsetVoltage) {
+String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsigned long mStart, float maxPressureThreshold, int pressureUnit, float hysteresis, unsigned long sensorInterval, unsigned long tsIntervalSeconds, unsigned long bfIntervalMinutes, float offsetVoltage, bool useTempSensor) {
     String html = "<html><body>";
     html += "<h1>Pressure Sensor (" + String(HOSTNAME) + ")</h1>";
     html += "<p>IP Address: " + WiFi.localIP().toString() + "</p>";
@@ -63,6 +63,9 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
     html += "</form>";
     html += "<form action='/api' method='POST'>";
     html += "Voltage Offset (V): <input type='number' step='0.001' name='offset' value='" + String(offsetVoltage, 3) + "'> <input type='submit' value='Set'><br>";
+    html += "</form>";
+    html += "<form action='/api' method='POST'>";
+    html += "Use Temperature Sensor: <select name='useTemp'><option value='0'" + String(!useTempSensor ? " selected" : "") + ">Disabled</option><option value='1'" + String(useTempSensor ? " selected" : "") + ">Enabled</option></select> <input type='submit' value='Set'><br>";
     html += "</form>";
     html += "</body></html>";
     return html;

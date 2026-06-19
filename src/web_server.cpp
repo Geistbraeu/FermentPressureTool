@@ -19,6 +19,8 @@ extern float offsetVoltage;
 extern bool manualOverride;
 extern bool manualOn;
 extern unsigned long manualStartTime;
+extern bool useTempSensor;
+
 
 WebServer server(80);
 
@@ -35,7 +37,7 @@ void handleRoot() {
         xSemaphoreGive(dataMutex);
     }
     
-    server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart, maxPressureThreshold, pressureUnit, hysteresis, sensorInterval, tsIntervalSeconds, bfIntervalMinutes, offsetVoltage));
+    server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart, maxPressureThreshold, pressureUnit, hysteresis, sensorInterval, tsIntervalSeconds, bfIntervalMinutes, offsetVoltage, useTempSensor));
 }
 
 void handleApi() {
@@ -58,13 +60,14 @@ void handleApi() {
         }
         
         String json = "{\"pressure\":" + String(p, 2) + 
-                      ",\"voltage\":" + String(v, 2) + 
-                      ",\"maxPressure\":" + String(maxPressureThreshold, 2) + 
-                      ",\"pressureUnit\":" + String(pressureUnit) +
-                      ",\"offsetVoltage\":" + String(offsetVoltage, 3) + 
-                      ",\"manualOverride\":" + (mOverride ? "true" : "false") +
-                      ",\"manualOn\":" + (mOn ? "true" : "false") +
-                      ",\"remainingTime\":" + String(remaining) + "}";
+                       ",\"voltage\":" + String(v, 2) + 
+                       ",\"maxPressure\":" + String(maxPressureThreshold, 2) + 
+                       ",\"pressureUnit\":" + String(pressureUnit) +
+                       ",\"offsetVoltage\":" + String(offsetVoltage, 3) + 
+                       ",\"useTempSensor\":" + (useTempSensor ? "true" : "false") +
+                       ",\"manualOverride\":" + (mOverride ? "true" : "false") +
+                       ",\"manualOn\":" + (mOn ? "true" : "false") +
+                       ",\"remainingTime\":" + String(remaining) + "}";
         server.send(200, "application/json", json);
     } else if (server.method() == HTTP_POST) {
         if (server.hasArg("cmd")) {
@@ -126,6 +129,13 @@ void handleApi() {
             Preferences prefs;
             prefs.begin("config", false);
             prefs.putFloat("offsetVoltage", offsetVoltage);
+            prefs.end();
+        }
+        if (server.hasArg("useTemp")) {
+            useTempSensor = server.arg("useTemp").toInt() == 1;
+            Preferences prefs;
+            prefs.begin("config", false);
+            prefs.putBool("useTemp", useTempSensor);
             prefs.end();
         }
         server.sendHeader("Location", "/", true);
