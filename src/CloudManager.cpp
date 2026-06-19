@@ -6,9 +6,11 @@
 
 static unsigned long lastThingSpeakTime = 0;
 static unsigned long lastBrewfatherTime = 0;
+static unsigned long lastCustomHTTPTime = 0;
 
 // SECURE CLIENT AND SERVER SETTINGS
 WiFiClientSecure client;
+WiFiClient httpClient;
 
 const char* tsServer = "api.thingspeak.com";
 const char* bfServer = "log.brewfather.net";
@@ -17,6 +19,7 @@ void initCloud() {
   client.setInsecure();
   lastThingSpeakTime = millis() - (settings.tsIntervalSeconds * 1000);
   lastBrewfatherTime = millis() - (settings.bfIntervalMinutes * 60000);
+  lastCustomHTTPTime = millis() - (settings.httpIntervalSeconds * 1000);
 }
 
 void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp) {
@@ -122,5 +125,103 @@ void sendDataToBrewfather(float voltage, float pressure, float temp) {
     Serial.println("[Brewfather] JSON POST запрос успешно отправлен.");
   } else {
     Serial.println("[Brewfather] Ошибка HTTPS подключения (порт 443).");
+  }
+}
+
+String replacePlaceholders(String text, float voltage, float pressure, float pressureBar, float temp) {
+  String result = text;
+  result.replace("{volt}", String(voltage, 3));
+  result.replace("{psi}", String(pressure, 3));
+  result.replace("{bar}", String(pressureBar, 3));
+  result.replace("{temp}", String(temp, 3));
+  return result;
+}
+
+void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp) {
+  if (!settings.httpEnabled || settings.httpServer.isEmpty()) {
+    return;
+  }
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastCustomHTTPTime < (settings.httpIntervalSeconds * 1000)) {
+    return;
+  }
+  lastCustomHTTPTime = currentMillis;
+
+  String serverInput = settings.httpServer;
+  String pathInput = settings.httpPath;
+  if (pathInput.length() == 0) {
+    pathInput = "/";
+  }
+
+  String host = serverInput;
+  int port = 80;
+  if (host.startsWith("http://")) {
+    host.remove(0, 7);
+  } else if (host.startsWith("https://")) {
+    host.remove(0, 8);
+    port = 443;
+  }
+
+  int slashIndex = host.indexOf('/');
+  if (slashIndex >= 0) {
+    host = host.substring(0, slashIndex);
+  }
+
+  int colonIndex = host.indexOf(':');
+  if (colonIndex >= 0) {
+    String portStr = host.substring(colonIndex + 1);
+    port = portStr.toInt();
+    host = host.substring(0, colonIndex);
+  }
+
+  String finalPath = replacePlaceholders(pathInput, voltage, pressure, pressureBar, temp);
+  String finalBody = replacePlaceholders(settings.httpBodyTemplate, voltage, pressure, pressureBar, temp);
+
+  httpClient.stop();
+  Serial.println("\n[HTTP] Подключение к серверу...");
+
+  if (port == 443) {
+    WiFiClientSecure httpsClient;
+    httpsClient.setInsecure();
+    if (httpsClient.connect(host.c_str(), port)) {
+      Serial.print("[HTTP] Отправка POST -> ");
+      Serial.println(finalPath);
+      String request = "POST " + finalPath + " HTTP/1.1\r\n";
+      request += "Host: " + host + "\r\n";
+      if (!finalBody.isEmpty()) {
+        request += "Content-Type: application/json\r\n";
+        request += "Content-Length: " + String(finalBody.length()) + "\r\n";
+      }
+      request += "Connection: close\r\n\r\n";
+      if (!finalBody.isEmpty()) {
+        request += finalBody;
+      }
+      httpsClient.print(request);
+      httpsClient.flush();
+      Serial.println("[HTTP] POST запрос успешно отправлен.");
+    } else {
+      Serial.println("[HTTP] Ошибка подключения к HTTPS серверу.");
+    }
+  } else {
+    if (httpClient.connect(host.c_str(), port)) {
+      Serial.print("[HTTP] Отправка POST -> ");
+      Serial.println(finalPath);
+      String request = "POST " + finalPath + " HTTP/1.1\r\n";
+      request += "Host: " + host + "\r\n";
+      if (!finalBody.isEmpty()) {
+        request += "Content-Type: application/json\r\n";
+        request += "Content-Length: " + String(finalBody.length()) + "\r\n";
+      }
+      request += "Connection: close\r\n\r\n";
+      if (!finalBody.isEmpty()) {
+        request += finalBody;
+      }
+      httpClient.print(request);
+      httpClient.flush();
+      Serial.println("[HTTP] POST запрос успешно отправлен.");
+    } else {
+      Serial.println("[HTTP] Ошибка подключения к HTTP серверу.");
+    }
   }
 }

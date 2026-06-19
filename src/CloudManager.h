@@ -4,5 +4,6 @@
 void initCloud();
 void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp);
 void sendDataToBrewfather(float voltage, float pressure, float temp);
+void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp);
 
 #endif // CLOUD_MANAGER_H

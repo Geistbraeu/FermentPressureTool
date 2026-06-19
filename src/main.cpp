@@ -265,6 +265,7 @@ void networkTask(void *pvParameters) {
     if (ready) {
         sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
         sendDataToBrewfather(vLocal, pLocal, tLocal);
+        sendDataViaCustomHTTP(vLocal, pLocal, pBar, tLocal);
     } else {
         Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
     }
@@ -325,4 +326,4 @@ void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp
 
   display.display();
 }
-
+

@@ -23,6 +23,13 @@ public:
     bool tsEnabled;
     bool bfEnabled;
 
+    // HTTP custom settings
+    bool httpEnabled;
+    String httpServer;
+    String httpPath;
+    String httpBodyTemplate;
+    unsigned long httpIntervalSeconds;
+
     void load();
     
     void setMaxPressureThreshold(float val);
@@ -38,6 +45,11 @@ public:
     void setBfDeviceName(const String& val);
     void setTsEnabled(bool val);
     void setBfEnabled(bool val);
+    void setHttpEnabled(bool val);
+    void setHttpServer(const String& val);
+    void setHttpPath(const String& val);
+    void setHttpBodyTemplate(const String& val);
+    void setHttpIntervalSeconds(unsigned long val);
 };
 
 extern Settings settings;

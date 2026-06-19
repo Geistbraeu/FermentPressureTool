@@ -9,7 +9,9 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
                unsigned long sensorInterval, unsigned long tsIntervalSeconds,
                unsigned long bfIntervalMinutes, float offsetVoltage, bool useTempSensor,
                const String& tsApiKey, const String& bfStreamId, const String& bfDeviceName,
-               bool tsEnabled, bool bfEnabled) {
+               bool tsEnabled, bool bfEnabled,
+               bool httpEnabled, const String& httpServer, const String& httpPath,
+               const String& httpBodyTemplate, unsigned long httpIntervalSeconds) {
 
     long remaining = 0;
     if (mOverride) {
@@ -485,6 +487,74 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <input type="number" name="bfInterval" value=")rawhtml";
     html += String(bfIntervalMinutes);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <hr class="divider">
+      <div class="section-title">Custom HTTP POST</div>
+
+      <div class="setting-group">
+        <label class="setting-label">HTTP POST Enabled</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <select name="httpEnabled">
+              <option value="0")rawhtml";
+    html += (!httpEnabled ? " selected" : "");
+    html += R"rawhtml(>Disabled</option>
+              <option value="1")rawhtml";
+    html += (httpEnabled ? " selected" : "");
+    html += R"rawhtml(>Enabled</option>
+            </select>
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Server Address (http://... or https://...)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="text" name="httpServer" value=")rawhtml";
+    html += httpServer;
+    html += R"rawhtml(" placeholder="e.g. http://192.168.1.100:8080">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">HTTP Path (supports {volt}, {psi}, {bar}, {temp})</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="text" name="httpPath" value=")rawhtml";
+    html += httpPath;
+    html += R"rawhtml(" placeholder="e.g. /api/data?volt={volt}&psi={psi}">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">JSON Body Template (optional, supports {volt}, {psi}, {bar}, {temp})</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="text" name="httpBodyTemplate" value=")rawhtml";
+    html += httpBodyTemplate;
+    html += R"rawhtml(" placeholder="e.g. {\"voltage\":{volt},\"pressure\":{psi}}">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Send Interval (seconds, min 15)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" name="httpInterval" value=")rawhtml";
+    html += String(httpIntervalSeconds);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>

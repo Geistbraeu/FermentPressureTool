@@ -35,7 +35,9 @@ void handleRoot() {
         settings.sensorInterval, settings.tsIntervalSeconds, settings.bfIntervalMinutes,
         settings.offsetVoltage, settings.useTempSensor,
         settings.tsApiKey, settings.bfStreamId, settings.bfDeviceName,
-        settings.tsEnabled, settings.bfEnabled));
+        settings.tsEnabled, settings.bfEnabled,
+        settings.httpEnabled, settings.httpServer, settings.httpPath,
+        settings.httpBodyTemplate, settings.httpIntervalSeconds));
 }
 
 void handleApi() {
@@ -120,6 +122,23 @@ void handleApi() {
         }
         if (server.hasArg("bfEnabled")) {
             settings.setBfEnabled(server.arg("bfEnabled").toInt() == 1);
+        }
+        if (server.hasArg("httpEnabled")) {
+            settings.setHttpEnabled(server.arg("httpEnabled").toInt() == 1);
+        }
+        if (server.hasArg("httpServer")) {
+            settings.setHttpServer(server.arg("httpServer"));
+        }
+        if (server.hasArg("httpPath")) {
+            settings.setHttpPath(server.arg("httpPath"));
+        }
+        if (server.hasArg("httpBodyTemplate")) {
+            settings.setHttpBodyTemplate(server.arg("httpBodyTemplate"));
+        }
+        if (server.hasArg("httpInterval")) {
+            unsigned long val = server.arg("httpInterval").toInt();
+            if (val < 15) val = 15;
+            settings.setHttpIntervalSeconds(val);
         }
         server.sendHeader("Location", "/", true);
         server.send(303, "text/plain", "OK");

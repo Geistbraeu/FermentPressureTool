@@ -20,6 +20,11 @@ void Settings::load() {
     bfDeviceName = prefs.getString("bfDevName", "Pressure_Sensor");
     tsEnabled = prefs.getBool("tsEnabled", true);
     bfEnabled = prefs.getBool("bfEnabled", true);
+    httpEnabled = prefs.getBool("httpEnabled", false);
+    httpServer = prefs.getString("httpServer", "");
+    httpPath = prefs.getString("httpPath", "/");
+    httpBodyTemplate = prefs.getString("httpBody", "");
+    httpIntervalSeconds = prefs.getULong("httpInterval", 60);
     prefs.end();
 }
 
@@ -124,6 +129,46 @@ void Settings::setBfEnabled(bool val) {
     Preferences prefs;
     prefs.begin("config", false);
     prefs.putBool("bfEnabled", val);
+    prefs.end();
+}
+
+void Settings::setHttpEnabled(bool val) {
+    httpEnabled = val;
+    Preferences prefs;
+    prefs.begin("config", false);
+    prefs.putBool("httpEnabled", val);
+    prefs.end();
+}
+
+void Settings::setHttpServer(const String& val) {
+    httpServer = val;
+    Preferences prefs;
+    prefs.begin("config", false);
+    prefs.putString("httpServer", val);
+    prefs.end();
+}
+
+void Settings::setHttpPath(const String& val) {
+    httpPath = val;
+    Preferences prefs;
+    prefs.begin("config", false);
+    prefs.putString("httpPath", val);
+    prefs.end();
+}
+
+void Settings::setHttpBodyTemplate(const String& val) {
+    httpBodyTemplate = val;
+    Preferences prefs;
+    prefs.begin("config", false);
+    prefs.putString("httpBody", val);
+    prefs.end();
+}
+
+void Settings::setHttpIntervalSeconds(unsigned long val) {
+    httpIntervalSeconds = val;
+    Preferences prefs;
+    prefs.begin("config", false);
+    prefs.putULong("httpInterval", val);
     prefs.end();
 }
 
