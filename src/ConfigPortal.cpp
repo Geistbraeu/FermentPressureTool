@@ -88,7 +88,9 @@ void ConfigPortal::startSetupMode() {
         display.clearDisplay();
         display.setCursor(0, 0);
         display.println("AP Mode: Ferment_Setup");
-        display.println("Connect and config");
+        display.print("IP: ");
+        display.println(WiFi.softAPIP());
+        display.println("Connect to config");
         display.display();
     }
 
