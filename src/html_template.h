@@ -8,12 +8,6 @@
 String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
   float pBar = runtime.pressure * SensorConfig::PSI_TO_BAR;
 
-    long remaining = 0;
-  if (runtime.manualOverride) {
-    remaining = 10000L - (long)(millis() - runtime.manualStartTime);
-        if (remaining < 0) remaining = 0;
-    }
-
     String html = R"rawhtml(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,6 +82,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
   .card-value.accent { color: var(--accent); }
   .card-value.ok { color: var(--ok); }
   .card-value.warn { color: var(--warn); }
+  .card-value.danger { color: var(--danger); }
 
   /* VALVE CONTROLS */
   .controls {
@@ -241,28 +236,28 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
   <div class="cards">
     <div class="card">
       <div class="card-label">Pressure</div>
-      <div class="card-value accent">)rawhtml";
+      <div class="card-value accent" id="pressure-psi">)rawhtml";
     html += String(runtime.pressure, 2) + " PSI";
     html += R"rawhtml(</div>
     </div>
     <div class="card">
       <div class="card-label">Pressure</div>
-      <div class="card-value accent">)rawhtml";
+      <div class="card-value accent" id="pressure-bar">)rawhtml";
     html += String(pBar, 2) + " Bar";
     html += R"rawhtml(</div>
     </div>
     <div class="card">
       <div class="card-label">Voltage</div>
-      <div class="card-value">)rawhtml";
+      <div class="card-value" id="voltage-v">)rawhtml";
     html += String(runtime.voltage, 3) + " V";
     html += R"rawhtml(</div>
     </div>
     <div class="card">
       <div class="card-label">Valve</div>
       <div class="card-value )rawhtml";
-    if (!runtime.manualOverride) html += "ok\">Auto";
-    else if (runtime.manualOn)   html += "warn\">Manual Open";
-    else            html += "danger\">Manual Closed";
+    if (!runtime.manualOverride) html += "ok\" id=\"valve-state\">Auto";
+    else if (runtime.manualOn)   html += "warn\" id=\"valve-state\">Manual Open";
+    else            html += "danger\" id=\"valve-state\">Manual Closed";
     html += R"rawhtml(</div>
     </div>
   </div>
@@ -614,19 +609,70 @@ function switchTab(name, btn) {
   document.getElementById('panel-' + name).classList.add('active');
   btn.classList.add('active');
 }
-)rawhtml";
 
-    // Timer countdown script
-    if (runtime.manualOverride && remaining > 0) {
-        html += "let rem=" + String(remaining) + ";";
-        html += "const timerEl=document.getElementById('timer');";
-        html += "timerEl.innerText='Manual mode: '+Math.floor(rem/1000)+'s remaining';";
-        html += "const iv=setInterval(()=>{"
-                "  rem-=1000;"
-                "  if(rem<=0){clearInterval(iv);location.reload();}";
-        html += "  else{timerEl.innerText='Manual mode: '+Math.floor(rem/1000)+'s remaining';}";
-        html += "},1000);";
+const pressurePsiEl = document.getElementById('pressure-psi');
+const pressureBarEl = document.getElementById('pressure-bar');
+const voltageEl = document.getElementById('voltage-v');
+const valveEl = document.getElementById('valve-state');
+const timerEl = document.getElementById('timer');
+
+function setValveState(manualOverride, manualOn) {
+  if (!valveEl) return;
+
+  if (!manualOverride) {
+    valveEl.className = 'card-value ok';
+    valveEl.textContent = 'Auto';
+    return;
+  }
+
+  if (manualOn) {
+    valveEl.className = 'card-value warn';
+    valveEl.textContent = 'Manual Open';
+  } else {
+    valveEl.className = 'card-value danger';
+    valveEl.textContent = 'Manual Closed';
+  }
+}
+
+function setManualTimer(manualOverride, remainingMs) {
+  if (!timerEl) return;
+
+  if (!manualOverride || !Number.isFinite(remainingMs) || remainingMs < 0) {
+    timerEl.textContent = '';
+    return;
+  }
+
+  timerEl.textContent = 'Manual mode: ' + Math.floor(remainingMs / 1000) + 's remaining';
+}
+
+async function refreshLiveData() {
+  try {
+    const response = await fetch('/api', { cache: 'no-store' });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const pressure = Number(data.pressure);
+    const voltage = Number(data.voltage);
+
+    if (Number.isFinite(pressure)) {
+      pressurePsiEl.textContent = pressure.toFixed(2) + ' PSI';
+      pressureBarEl.textContent = (pressure * 0.0689476).toFixed(2) + ' Bar';
     }
+
+    if (Number.isFinite(voltage)) {
+      voltageEl.textContent = voltage.toFixed(3) + ' V';
+    }
+
+    setValveState(Boolean(data.manualOverride), Boolean(data.manualOn));
+    setManualTimer(Boolean(data.manualOverride), Number(data.remainingTime));
+  } catch (e) {
+    // Ignore transient network or parsing failures; next poll will retry.
+  }
+}
+
+refreshLiveData();
+setInterval(refreshLiveData, 1000);
+)rawhtml";
 
     html += R"rawhtml(</script>
 </body>
