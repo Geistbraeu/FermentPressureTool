@@ -26,7 +26,8 @@ void handleRoot() {
     
     server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart,
         settings.maxPressureThreshold, settings.pressureUnit, settings.hysteresis,
-        settings.sensorInterval, settings.tsIntervalSeconds, settings.bfIntervalMinutes,
+        settings.sensorInterval, settings.medianSampleCount, settings.medianSampleDelayMs,
+        settings.tsIntervalSeconds, settings.bfIntervalMinutes,
         settings.offsetVoltage, settings.tempOffset, settings.useTempSensor,
         settings.tsApiKey, settings.bfStreamId, settings.bfDeviceName,
         settings.tsEnabled, settings.bfEnabled,
@@ -93,6 +94,12 @@ void handleApi() {
         }
         if (server.hasArg("sInterval")) {
             settings.setSensorInterval(server.arg("sInterval").toInt());
+        }
+        if (server.hasArg("medianSampleCount")) {
+            settings.setMedianSampleCount(server.arg("medianSampleCount").toInt());
+        }
+        if (server.hasArg("medianSampleDelay")) {
+            settings.setMedianSampleDelayMs(server.arg("medianSampleDelay").toInt());
         }
         if (server.hasArg("tsInterval")) {
             unsigned long val = server.arg("tsInterval").toInt();

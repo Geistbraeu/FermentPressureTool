@@ -9,6 +9,8 @@ public:
     int pressureUnit;
     float hysteresis;
     unsigned long sensorInterval;
+    unsigned int medianSampleCount;
+    unsigned long medianSampleDelayMs;
     unsigned long tsIntervalSeconds;
     unsigned long bfIntervalMinutes;
     float offsetVoltage;
@@ -37,6 +39,8 @@ public:
     void setPressureUnit(int val);
     void setHysteresis(float val);
     void setSensorInterval(unsigned long val);
+    void setMedianSampleCount(unsigned int val);
+    void setMedianSampleDelayMs(unsigned long val);
     void setTsIntervalSeconds(unsigned long val);
     void setBfIntervalMinutes(unsigned long val);
     void setOffsetVoltage(float val);

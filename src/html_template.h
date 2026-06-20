@@ -6,7 +6,8 @@
 
 String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsigned long mStart,
                float maxPressureThreshold, int pressureUnit, float hysteresis,
-               unsigned long sensorInterval, unsigned long tsIntervalSeconds,
+               unsigned long sensorInterval, unsigned int medianSampleCount,
+               unsigned long medianSampleDelayMs, unsigned long tsIntervalSeconds,
                unsigned long bfIntervalMinutes, float offsetVoltage, float tempOffset, bool useTempSensor,
                const String& tsApiKey, const String& bfStreamId, const String& bfDeviceName,
                bool tsEnabled, bool bfEnabled,
@@ -367,6 +368,30 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <input type="number" name="sInterval" value=")rawhtml";
     html += String(sensorInterval);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Median Sample Count</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" name="medianSampleCount" value=")rawhtml";
+    html += String(medianSampleCount);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Median Sample Delay (ms)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" name="medianSampleDelay" value=")rawhtml";
+    html += String(medianSampleDelayMs);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>

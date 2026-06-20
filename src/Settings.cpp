@@ -46,6 +46,8 @@ void Settings::load() {
     pressureUnit = prefs.getInt("pUnit", 0);
     hysteresis = prefs.getFloat("hysteresis", 0.5);
     sensorInterval = prefs.getULong("sInterval", 200);
+    medianSampleCount = prefs.getULong("medianCount", 5);
+    medianSampleDelayMs = prefs.getULong("medianDelay", 10);
     tsIntervalSeconds = prefs.getULong("tsInterval", 120);
     bfIntervalMinutes = prefs.getULong("bfInterval", 15);
     offsetVoltage = prefs.getFloat("offsetVoltage", 0.515);
@@ -82,6 +84,19 @@ void Settings::setHysteresis(float val) {
 void Settings::setSensorInterval(unsigned long val) {
     sensorInterval = val;
     saveULong("sInterval", val);
+}
+
+void Settings::setMedianSampleCount(unsigned int val) {
+    if (val < 3) val = 3;
+    if ((val % 2) == 0) val++;
+    medianSampleCount = val;
+    saveULong("medianCount", val);
+}
+
+void Settings::setMedianSampleDelayMs(unsigned long val) {
+    if (val < 1) val = 1;
+    medianSampleDelayMs = val;
+    saveULong("medianDelay", val);
 }
 
 void Settings::setTsIntervalSeconds(unsigned long val) {

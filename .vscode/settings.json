@@ -23,6 +23,14 @@
         "/^& \"C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe\" run$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^& \"C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe\" run > build\\.log 2>&1; if \\(\\$LASTEXITCODE -ne 0\\) \\{ Get-Content build\\.log; exit \\$LASTEXITCODE \\}; Select-String -Path build\\.log -Pattern 'Building\\|Compiling\\|Linking\\|Creating\\|Successfully\\|error\\|Error' -AllMatches \\| Select-Object -Last 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe run > build\\.log 2>&1; if \\(\\$LASTEXITCODE -ne 0\\) \\{ Get-Content build\\.log; exit \\$LASTEXITCODE \\}; Select-String -Path build\\.log -Pattern 'Building\\|Compiling\\|Linking\\|Creating\\|Successfully\\|error\\|Error' -AllMatches \\| Select-Object -Last 20$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

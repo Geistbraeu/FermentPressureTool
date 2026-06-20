@@ -154,19 +154,27 @@ float readTemperature(bool isEnabled) {
 
 // --- ЛОГИКА СЕНСОРА (Core 1) ---
 void sensorTask(void *pvParameters) {
-  const int numSamples = 5;
-  int samples[numSamples];
+  const unsigned int kMaxMedianSamples = 31;
+  int samples[kMaxMedianSamples];
 
   for (;;) {
+    unsigned int sampleCount = settings.medianSampleCount;
+    if (sampleCount < 3) sampleCount = 3;
+    if (sampleCount > kMaxMedianSamples) sampleCount = kMaxMedianSamples;
+    if ((sampleCount % 2) == 0) {
+      sampleCount++;
+      if (sampleCount > kMaxMedianSamples) sampleCount = kMaxMedianSamples;
+    }
+
     // 1. Сбор данных для медианного фильтра
-    for (int i = 0; i < numSamples; i++) {
+    for (unsigned int i = 0; i < sampleCount; i++) {
       samples[i] = analogRead(sensorPin);
-      vTaskDelay(pdMS_TO_TICKS(10));
+      vTaskDelay(pdMS_TO_TICKS(settings.medianSampleDelayMs));
     }
 
     // 2. Простая сортировка (пузырек) для нахождения медианы
-    for (int i = 0; i < numSamples - 1; i++) {
-      for (int j = 0; j < numSamples - i - 1; j++) {
+    for (unsigned int i = 0; i < sampleCount - 1; i++) {
+      for (unsigned int j = 0; j < sampleCount - i - 1; j++) {
         if (samples[j] > samples[j + 1]) {
           int temp = samples[j];
           samples[j] = samples[j + 1];
@@ -174,7 +182,7 @@ void sensorTask(void *pvParameters) {
         }
       }
     }
-    int medianRaw = samples[numSamples / 2];
+    int medianRaw = samples[sampleCount / 2];
 
     // 3. Расчет значений давления
     uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(medianRaw, &runtimeState.adc_chars);
