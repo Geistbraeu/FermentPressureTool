@@ -6,45 +6,13 @@
 #include "validation.h"
 #include "web_server.h"
 #include "html_template.h"
+#include "WebViewModels.h"
 #include "Settings.h"
 #include "RuntimeState.h"
 
 extern RuntimeState runtimeState;
 
 WebServer server(80);
-
-struct RuntimeSnapshot {
-    float pressure = 0.0f;
-    float voltage = 0.0f;
-    bool manualOverride = false;
-    bool manualOn = false;
-    unsigned long manualStartTime = 0;
-};
-
-struct SettingsSnapshot {
-    float maxPressureThreshold = 0.0f;
-    int pressureUnit = 0;
-    float hysteresis = 0.0f;
-    unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
-    unsigned int medianSampleCount = ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT;
-    unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
-    unsigned long tsIntervalSeconds = CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC;
-    unsigned long bfIntervalMinutes = CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN;
-    float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
-    float tempOffset = 0.0f;
-    bool useTempSensor = true;
-    String tsApiKey;
-    String bfStreamId;
-    String bfDeviceName;
-    bool tsEnabled = false;
-    bool bfEnabled = false;
-    bool httpEnabled = false;
-    String httpServer;
-    String httpPath = "/";
-    String httpBodyTemplate;
-    unsigned long httpIntervalSeconds = CloudConfig::CUSTOM_HTTP_DEFAULT_INTERVAL_SEC;
-    String devName;
-};
 
 static RuntimeSnapshot readRuntimeSnapshot() {
     RuntimeSnapshot snapshot;
@@ -95,17 +63,7 @@ void handleRoot() {
     RuntimeSnapshot runtime = readRuntimeSnapshot();
     SettingsSnapshot cfg = readSettingsSnapshot();
     
-    server.send(200, "text/html", getHtml(runtime.pressure, runtime.pressure * SensorConfig::PSI_TO_BAR, runtime.voltage,
-        runtime.manualOverride, runtime.manualOn, runtime.manualStartTime,
-        cfg.maxPressureThreshold, cfg.pressureUnit, cfg.hysteresis,
-        cfg.updateIntervalMs, cfg.medianSampleCount, cfg.medianSampleDelayMs,
-        cfg.tsIntervalSeconds, cfg.bfIntervalMinutes,
-        cfg.offsetVoltage, cfg.tempOffset, cfg.useTempSensor,
-        cfg.tsApiKey, cfg.bfStreamId, cfg.bfDeviceName,
-        cfg.tsEnabled, cfg.bfEnabled,
-        cfg.httpEnabled, cfg.httpServer, cfg.httpPath,
-        cfg.httpBodyTemplate, cfg.httpIntervalSeconds,
-        cfg.devName));
+    server.send(200, "text/html", getHtml(runtime, cfg));
 }
 
 void handleApi() {

@@ -3,25 +3,16 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include "WebViewModels.h"
 
-String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsigned long mStart,
-               float maxPressureThreshold, int pressureUnit, float hysteresis,
-               unsigned long updateIntervalMs, unsigned int medianSampleCount,
-               unsigned long medianSampleDelayMs, unsigned long tsIntervalSeconds,
-               unsigned long bfIntervalMinutes, float offsetVoltage, float tempOffset, bool useTempSensor,
-               const String& tsApiKey, const String& bfStreamId, const String& bfDeviceName,
-               bool tsEnabled, bool bfEnabled,
-               bool httpEnabled, const String& httpServer, const String& httpPath,
-               const String& httpBodyTemplate, unsigned long httpIntervalSeconds,
-               const String& deviceName) {
+String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
+  float pBar = runtime.pressure * SensorConfig::PSI_TO_BAR;
 
     long remaining = 0;
-    if (mOverride) {
-        remaining = 10000L - (long)(millis() - mStart);
+  if (runtime.manualOverride) {
+    remaining = 10000L - (long)(millis() - runtime.manualStartTime);
         if (remaining < 0) remaining = 0;
     }
-
-    String valveStatus = mOverride ? (mOn ? "Manual Open" : "Manual Closed") : "Auto";
 
     String html = R"rawhtml(<!DOCTYPE html>
 <html lang="en">
@@ -241,7 +232,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
     <div class="header-left">
       <h1>&#127866; Fermenter Control</h1>
       <p>)rawhtml";
-    html += deviceName + " &nbsp;&#183;&nbsp; " + WiFi.localIP().toString();
+    html += cfg.devName + " &nbsp;&#183;&nbsp; " + WiFi.localIP().toString();
     html += R"rawhtml(</p>
     </div>
   </div>
@@ -251,7 +242,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
     <div class="card">
       <div class="card-label">Pressure</div>
       <div class="card-value accent">)rawhtml";
-    html += String(pPsi, 2) + " PSI";
+    html += String(runtime.pressure, 2) + " PSI";
     html += R"rawhtml(</div>
     </div>
     <div class="card">
@@ -263,14 +254,14 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
     <div class="card">
       <div class="card-label">Voltage</div>
       <div class="card-value">)rawhtml";
-    html += String(v, 3) + " V";
+    html += String(runtime.voltage, 3) + " V";
     html += R"rawhtml(</div>
     </div>
     <div class="card">
       <div class="card-label">Valve</div>
       <div class="card-value )rawhtml";
-    if (!mOverride) html += "ok\">Auto";
-    else if (mOn)   html += "warn\">Manual Open";
+    if (!runtime.manualOverride) html += "ok\">Auto";
+    else if (runtime.manualOn)   html += "warn\">Manual Open";
     else            html += "danger\">Manual Closed";
     html += R"rawhtml(</div>
     </div>
@@ -311,7 +302,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" step="0.1" name="pressure" value=")rawhtml";
-    html += String(maxPressureThreshold, 1);
+    html += String(cfg.maxPressureThreshold, 1);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -323,7 +314,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="devName" value=")rawhtml";
-    html += deviceName;
+    html += cfg.devName;
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -336,10 +327,10 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <select name="pUnit">
               <option value="0")rawhtml";
-    html += (pressureUnit == 0 ? " selected" : "");
+    html += (cfg.pressureUnit == 0 ? " selected" : "");
     html += R"rawhtml(>PSI</option>
               <option value="1")rawhtml";
-    html += (pressureUnit == 1 ? " selected" : "");
+    html += (cfg.pressureUnit == 1 ? " selected" : "");
     html += R"rawhtml(>Bar</option>
             </select>
             <button class="btn-set" type="submit">Set</button>
@@ -352,7 +343,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" step="0.1" name="hysteresis" value=")rawhtml";
-    html += String(hysteresis, 1);
+    html += String(cfg.hysteresis, 1);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -367,7 +358,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="updateInterval" value=")rawhtml";
-    html += String(updateIntervalMs);
+    html += String(cfg.updateIntervalMs);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -379,7 +370,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="medianSampleCount" value=")rawhtml";
-    html += String(medianSampleCount);
+    html += String(cfg.medianSampleCount);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -391,7 +382,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="medianSampleDelay" value=")rawhtml";
-    html += String(medianSampleDelayMs);
+    html += String(cfg.medianSampleDelayMs);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -403,7 +394,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" step="0.001" name="offset" value=")rawhtml";
-    html += String(offsetVoltage, 3);
+    html += String(cfg.offsetVoltage, 3);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -415,7 +406,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" step="0.1" name="tempOffset" value=")rawhtml";
-    html += String(tempOffset, 1);
+    html += String(cfg.tempOffset, 1);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -428,10 +419,10 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <select name="useTemp">
               <option value="0")rawhtml";
-    html += (!useTempSensor ? " selected" : "");
+    html += (!cfg.useTempSensor ? " selected" : "");
     html += R"rawhtml(>Disabled</option>
               <option value="1")rawhtml";
-    html += (useTempSensor ? " selected" : "");
+    html += (cfg.useTempSensor ? " selected" : "");
     html += R"rawhtml(>Enabled</option>
             </select>
             <button class="btn-set" type="submit">Set</button>
@@ -452,10 +443,10 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <select name="tsEnabled">
               <option value="0")rawhtml";
-    html += (!tsEnabled ? " selected" : "");
+    html += (!cfg.tsEnabled ? " selected" : "");
     html += R"rawhtml(>Disabled</option>
               <option value="1")rawhtml";
-    html += (tsEnabled ? " selected" : "");
+    html += (cfg.tsEnabled ? " selected" : "");
     html += R"rawhtml(>Enabled</option>
             </select>
             <button class="btn-set" type="submit">Set</button>
@@ -468,7 +459,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="tsApiKey" value=")rawhtml";
-    html += tsApiKey;
+    html += cfg.tsApiKey;
     html += R"rawhtml(" placeholder="ThingSpeak Write API Key">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -480,7 +471,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="tsInterval" value=")rawhtml";
-    html += String(tsIntervalSeconds);
+    html += String(cfg.tsIntervalSeconds);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -496,10 +487,10 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <select name="bfEnabled">
               <option value="0")rawhtml";
-    html += (!bfEnabled ? " selected" : "");
+    html += (!cfg.bfEnabled ? " selected" : "");
     html += R"rawhtml(>Disabled</option>
               <option value="1")rawhtml";
-    html += (bfEnabled ? " selected" : "");
+    html += (cfg.bfEnabled ? " selected" : "");
     html += R"rawhtml(>Enabled</option>
             </select>
             <button class="btn-set" type="submit">Set</button>
@@ -512,7 +503,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="bfStreamId" value=")rawhtml";
-    html += bfStreamId;
+    html += cfg.bfStreamId;
     html += R"rawhtml(" placeholder="Brewfather Stream ID">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -524,7 +515,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="bfDeviceName" value=")rawhtml";
-    html += bfDeviceName;
+    html += cfg.bfDeviceName;
     html += R"rawhtml(" placeholder="e.g. Pressure_Sensor">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -536,7 +527,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="bfInterval" value=")rawhtml";
-    html += String(bfIntervalMinutes);
+    html += String(cfg.bfIntervalMinutes);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -552,10 +543,10 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
           <div class="setting-row">
             <select name="httpEnabled">
               <option value="0")rawhtml";
-    html += (!httpEnabled ? " selected" : "");
+    html += (!cfg.httpEnabled ? " selected" : "");
     html += R"rawhtml(>Disabled</option>
               <option value="1")rawhtml";
-    html += (httpEnabled ? " selected" : "");
+    html += (cfg.httpEnabled ? " selected" : "");
     html += R"rawhtml(>Enabled</option>
             </select>
             <button class="btn-set" type="submit">Set</button>
@@ -568,7 +559,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="httpServer" value=")rawhtml";
-    html += httpServer;
+    html += cfg.httpServer;
     html += R"rawhtml(" placeholder="e.g. http://192.168.1.100:8080">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -580,7 +571,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="httpPath" value=")rawhtml";
-    html += httpPath;
+    html += cfg.httpPath;
     html += R"rawhtml(" placeholder="e.g. /api/data?volt={volt}&psi={psi}">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -592,7 +583,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="text" name="httpBodyTemplate" value=")rawhtml";
-    html += httpBodyTemplate;
+    html += cfg.httpBodyTemplate;
     html += R"rawhtml(" placeholder="e.g. {\"voltage\":{volt},\"pressure\":{psi}}">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -604,7 +595,7 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
         <form action="/api" method="POST">
           <div class="setting-row">
             <input type="number" name="httpInterval" value=")rawhtml";
-    html += String(httpIntervalSeconds);
+    html += String(cfg.httpIntervalSeconds);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -626,7 +617,7 @@ function switchTab(name, btn) {
 )rawhtml";
 
     // Timer countdown script
-    if (mOverride && remaining > 0) {
+    if (runtime.manualOverride && remaining > 0) {
         html += "let rem=" + String(remaining) + ";";
         html += "const timerEl=document.getElementById('timer');";
         html += "timerEl.innerText='Manual mode: '+Math.floor(rem/1000)+'s remaining';";
