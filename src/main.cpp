@@ -42,6 +42,7 @@ RuntimeState runtimeState;
 void updateDisplay(String ipStatus, float voltage, float pressureBar, float temp);
 void sensorTask(void *pvParameters);
 void networkTask(void *pvParameters);
+void processSampledData();
 
 void setup() {
   Serial.begin(115200);   
@@ -152,10 +153,44 @@ float readTemperature(bool isEnabled) {
   return t;
 }
 
+void processSampledData() {
+  float t = 0.0;
+  if (settings.useTempSensor) {
+    t = readTemperature(true);
+  } else {
+    runtimeState.isTempSensorConnected = false;
+  }
+
+  if (xSemaphoreTake(runtimeState.dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+    if (runtimeState.hasSampledData) {
+      runtimeState.currentVoltage = runtimeState.sampledVoltage;
+      runtimeState.currentPressure = runtimeState.sampledPressure;
+      runtimeState.currentTemp = t;
+      runtimeState.isDataReady = true;
+
+      if (runtimeState.manualOverride && (millis() - runtimeState.manualStartTime > 10000)) {
+          runtimeState.manualOverride = false;
+      }
+
+      if (runtimeState.manualOverride) {
+          digitalWrite(SOLENOID_PIN, runtimeState.manualOn ? HIGH : LOW);
+      } else {
+          if (runtimeState.currentPressure > settings.maxPressureThreshold) {
+              digitalWrite(SOLENOID_PIN, HIGH);
+          } else if (runtimeState.currentPressure < (settings.maxPressureThreshold - settings.hysteresis)) {
+              digitalWrite(SOLENOID_PIN, LOW);
+          }
+      }
+    }
+    xSemaphoreGive(runtimeState.dataMutex);
+  }
+}
+
 // --- ЛОГИКА СЕНСОРА (Core 1) ---
 void sensorTask(void *pvParameters) {
   const unsigned int kMaxMedianSamples = 31;
   int samples[kMaxMedianSamples];
+  unsigned long lastProcessAt = 0;
 
   for (;;) {
     unsigned int sampleCount = settings.medianSampleCount;
@@ -194,39 +229,20 @@ void sensorTask(void *pvParameters) {
       p = (vSensor - settings.offsetVoltage) * 100.0 / (4.5 - 0.5); 
     }
 
-    // 4. Чтение температуры
-    float t = 0.0;
-    if (settings.useTempSensor) {
-      t = readTemperature(true);
-    } else {
-      runtimeState.isTempSensorConnected = false;
-    }
-
-    // 5. Сохранение в общие переменные с блокировкой мьютекса
+    // 4. Непрерывно публикуем фильтрованные значения в RuntimeState
     if (xSemaphoreTake(runtimeState.dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-      runtimeState.currentVoltage = vSensor;
-      runtimeState.currentPressure = p;
-      runtimeState.currentTemp = t; // Сохраняем температуру
-      runtimeState.isDataReady = true;
-
-      // Логика управления клапаном
-      if (runtimeState.manualOverride && (millis() - runtimeState.manualStartTime > 10000)) {
-          runtimeState.manualOverride = false;
-      }
-      
-      if (runtimeState.manualOverride) {
-          digitalWrite(SOLENOID_PIN, runtimeState.manualOn ? HIGH : LOW);
-      } else {
-          if (runtimeState.currentPressure > settings.maxPressureThreshold) {
-              digitalWrite(SOLENOID_PIN, HIGH);
-          } else if (runtimeState.currentPressure < (settings.maxPressureThreshold - settings.hysteresis)) {
-              digitalWrite(SOLENOID_PIN, LOW);
-          }
-      }
+      runtimeState.sampledVoltage = vSensor;
+      runtimeState.sampledPressure = p;
+      runtimeState.hasSampledData = true;
       xSemaphoreGive(runtimeState.dataMutex);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(settings.sensorInterval));
+    // 5. Периодическая обработка sampled данных по updateIntervalMs
+    unsigned long now = millis();
+    if (lastProcessAt == 0 || (now - lastProcessAt) >= settings.updateIntervalMs) {
+      processSampledData();
+      lastProcessAt = now;
+    }
   }
 }
 
@@ -268,7 +284,7 @@ void networkTask(void *pvParameters) {
     } else {
         Serial.println("[Сетевая задача] Ожидание первых данных от сенсора...");
     }
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Проверка таймеров раз в секунду
+    vTaskDelay(pdMS_TO_TICKS(settings.updateIntervalMs));
   }
 }
 

@@ -26,7 +26,7 @@ void handleRoot() {
     
     server.send(200, "text/html", getHtml(p, p * 0.0689476, v, mOverride, mOn, mStart,
         settings.maxPressureThreshold, settings.pressureUnit, settings.hysteresis,
-        settings.sensorInterval, settings.medianSampleCount, settings.medianSampleDelayMs,
+        settings.updateIntervalMs, settings.medianSampleCount, settings.medianSampleDelayMs,
         settings.tsIntervalSeconds, settings.bfIntervalMinutes,
         settings.offsetVoltage, settings.tempOffset, settings.useTempSensor,
         settings.tsApiKey, settings.bfStreamId, settings.bfDeviceName,
@@ -92,8 +92,8 @@ void handleApi() {
         if (server.hasArg("hysteresis")) {
             settings.setHysteresis(server.arg("hysteresis").toFloat());
         }
-        if (server.hasArg("sInterval")) {
-            settings.setSensorInterval(server.arg("sInterval").toInt());
+        if (server.hasArg("updateInterval")) {
+            settings.setUpdateIntervalMs(server.arg("updateInterval").toInt());
         }
         if (server.hasArg("medianSampleCount")) {
             settings.setMedianSampleCount(server.arg("medianSampleCount").toInt());

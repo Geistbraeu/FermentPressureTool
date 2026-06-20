@@ -6,7 +6,7 @@
 
 String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsigned long mStart,
                float maxPressureThreshold, int pressureUnit, float hysteresis,
-               unsigned long sensorInterval, unsigned int medianSampleCount,
+               unsigned long updateIntervalMs, unsigned int medianSampleCount,
                unsigned long medianSampleDelayMs, unsigned long tsIntervalSeconds,
                unsigned long bfIntervalMinutes, float offsetVoltage, float tempOffset, bool useTempSensor,
                const String& tsApiKey, const String& bfStreamId, const String& bfDeviceName,
@@ -363,11 +363,11 @@ String getHtml(float pPsi, float pBar, float v, bool mOverride, bool mOn, unsign
       <div class="section-title">Sensor &amp; Calibration</div>
 
       <div class="setting-group">
-        <label class="setting-label">Sensor Poll Interval (ms)</label>
+        <label class="setting-label">Update Interval (ms)</label>
         <form action="/api" method="POST">
           <div class="setting-row">
-            <input type="number" name="sInterval" value=")rawhtml";
-    html += String(sensorInterval);
+            <input type="number" name="updateInterval" value=")rawhtml";
+    html += String(updateIntervalMs);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>

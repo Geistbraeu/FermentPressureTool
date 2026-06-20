@@ -45,7 +45,7 @@ void Settings::load() {
     maxPressureThreshold = prefs.getFloat("maxPressure", 14.0);
     pressureUnit = prefs.getInt("pUnit", 0);
     hysteresis = prefs.getFloat("hysteresis", 0.5);
-    sensorInterval = prefs.getULong("sInterval", 200);
+    updateIntervalMs = prefs.getULong("updateInterval", 200);
     medianSampleCount = prefs.getULong("medianCount", 5);
     medianSampleDelayMs = prefs.getULong("medianDelay", 10);
     tsIntervalSeconds = prefs.getULong("tsInterval", 120);
@@ -81,9 +81,10 @@ void Settings::setHysteresis(float val) {
     saveFloat("hysteresis", val);
 }
 
-void Settings::setSensorInterval(unsigned long val) {
-    sensorInterval = val;
-    saveULong("sInterval", val);
+void Settings::setUpdateIntervalMs(unsigned long val) {
+    if (val < 1) val = 1;
+    updateIntervalMs = val;
+    saveULong("updateInterval", val);
 }
 
 void Settings::setMedianSampleCount(unsigned int val) {

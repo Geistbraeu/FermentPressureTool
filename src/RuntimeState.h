@@ -7,6 +7,9 @@
 #include <esp_adc_cal.h>
 
 struct RuntimeState {
+    float sampledVoltage = 0.0;
+    float sampledPressure = 0.0;
+    bool hasSampledData = false;
     float currentVoltage = 0.0;
     float currentPressure = 0.0;
     float currentTemp = 0.0;

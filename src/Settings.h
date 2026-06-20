@@ -8,7 +8,7 @@ public:
     float maxPressureThreshold;
     int pressureUnit;
     float hysteresis;
-    unsigned long sensorInterval;
+    unsigned long updateIntervalMs;
     unsigned int medianSampleCount;
     unsigned long medianSampleDelayMs;
     unsigned long tsIntervalSeconds;
@@ -38,7 +38,7 @@ public:
     void setMaxPressureThreshold(float val);
     void setPressureUnit(int val);
     void setHysteresis(float val);
-    void setSensorInterval(unsigned long val);
+    void setUpdateIntervalMs(unsigned long val);
     void setMedianSampleCount(unsigned int val);
     void setMedianSampleDelayMs(unsigned long val);
     void setTsIntervalSeconds(unsigned long val);
