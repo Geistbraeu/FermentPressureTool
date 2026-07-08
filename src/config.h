@@ -1,6 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <cstddef>
+#include <cstdint>
+
+#include <freertos/FreeRTOS.h>
+
 /**
  * FermentPreassureTool - Centralized Configuration
  * All hardware, sensor, and system constants in one place
@@ -57,7 +62,7 @@ namespace SensorConfig {
   constexpr float PRESSURE_PSI_RANGE = 100.0;        // PSI
 
   // Voltage divider
-  constexpr float ADC_VOLTAGE_DIVIDER = 1.4545;
+  constexpr float ADC_VOLTAGE_DIVIDER = 1.4545455;
 
   // Unit conversions
   constexpr float PSI_TO_BAR = 0.0689476;
@@ -129,7 +134,7 @@ namespace TaskConfig {
   constexpr int NETWORK_TASK_CORE = 0;
 
   // Mutex timeout
-  constexpr TickType_t MUTEX_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
+  const TickType_t MUTEX_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
 }
 
 // ==================== PREFERENCES (NVS) ====================
