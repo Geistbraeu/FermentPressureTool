@@ -1,17 +1,16 @@
 #include "device/SensorManager.h"
 #include "config.h"
 #include "debug.h"
-#include <Adafruit_MAX31865.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
 #include <esp_adc_cal.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 static const int sensorPin = HardwareConfig::ADC_PRESSURE_PIN;
-static Adafruit_MAX31865 tempSensor(
-    HardwareConfig::TEMP_SENSOR_CS_PIN,
-    HardwareConfig::TEMP_SENSOR_DI_PIN,
-    HardwareConfig::TEMP_SENSOR_DO_PIN,
-    HardwareConfig::TEMP_SENSOR_CLK_PIN);
+static OneWire oneWireBus(HardwareConfig::TEMP_SENSOR_PIN);
+static DallasTemperature tempSensor(&oneWireBus);
+static bool tempSensorInitialized = false;
 
 SensorManager sensorManager;
 
@@ -21,8 +20,11 @@ void SensorManager::initAdc(esp_adc_cal_characteristics_t* adcChars) {
 }
 
 void SensorManager::initTempSensor(bool useTempSensor) {
-  if (useTempSensor) {
-    tempSensor.begin(MAX31865_2WIRE);
+  (void)useTempSensor;
+
+  if (!tempSensorInitialized) {
+    tempSensor.begin();
+    tempSensorInitialized = true;
   }
 }
 
@@ -34,18 +36,21 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
     return 0.0f;
   }
 
-  uint16_t fault = tempSensor.readFault();
-  if (fault) {
-    DBGF("MAX31865 Fault: %u\n", fault);
-    tempSensor.clearFault();
+  if (!tempSensorInitialized) {
+    initTempSensor(true);
+  }
+
+  if (tempSensor.getDeviceCount() == 0) {
     if (isConnected != NULL) {
       *isConnected = false;
     }
     return 0.0f;
   }
 
-  float t = tempSensor.temperature(SensorConfig::RNOMINAL, SensorConfig::RREF);
-  if (t < SensorConfig::TEMP_FAULT_THRESHOLD) {
+  tempSensor.requestTemperatures();
+  float t = tempSensor.getTempCByIndex(0);
+  if (t == DEVICE_DISCONNECTED_C || t <= SensorConfig::TEMP_DISCONNECTED_C) {
+    DBG("DS18B20 disconnected or read failed");
     if (isConnected != NULL) {
       *isConnected = false;
     }
@@ -89,6 +94,8 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
       }
     }
   }
+
+
 
   int medianRaw = samples[sampleCount / 2];
   uint32_t voltageMv = esp_adc_cal_raw_to_voltage(medianRaw, adcChars);

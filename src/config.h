@@ -19,11 +19,8 @@ namespace HardwareConfig {
   // Pressure sensor (ADC)
   constexpr int ADC_PRESSURE_PIN = 34;  // ADC1_CH6
 
-  // Temperature sensor (MAX31865 SPI)
-  constexpr int TEMP_SENSOR_CS_PIN = 5;
-  constexpr int TEMP_SENSOR_DI_PIN = 23;   // MOSI
-  constexpr int TEMP_SENSOR_DO_PIN = 19;   // MISO
-  constexpr int TEMP_SENSOR_CLK_PIN = 18;  // SCK
+  // Temperature sensor (DS18B20 OneWire)
+  constexpr int TEMP_SENSOR_PIN = 4;
 }
 
 // ==================== DISPLAY (OLED SSD1306) ====================
@@ -49,12 +46,8 @@ namespace DisplayConfig {
 
 // ==================== SENSOR CALIBRATION ====================
 namespace SensorConfig {
-  // MAX31865 PT100 calibration
-  constexpr float RREF = 430.0;           // Reference resistor for PT100
-  constexpr float RNOMINAL = 100.0;       // Nominal resistance at 0°C
-  
-  // Temperature sensor fault detection
-  constexpr float TEMP_FAULT_THRESHOLD = -100.0;  // Celsius
+  // DS18B20 disconnect sentinel handling
+  constexpr float TEMP_DISCONNECTED_C = -127.0;
 
   // Pressure sensor calibration
   constexpr float PRESSURE_OFFSET_DEFAULT = 0.515;  // Volts

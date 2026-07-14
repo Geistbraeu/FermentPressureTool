@@ -48,7 +48,7 @@ void setup() {
   // Чтение настроек
   settings.load();
 
-  // Инициализация MAX31865
+  // Инициализация DS18B20
   sensorManager.initTempSensor(settings.useTempSensor);
 
   // Создаем мьютекс для защиты общих данных
