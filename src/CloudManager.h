@@ -19,8 +19,8 @@ private:
 };
 
 void initCloud();
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp);
-void sendDataToBrewfather(float voltage, float pressure, float temp);
-void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp);
+void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp, uint32_t valveActivationsPerHour);
+void sendDataToBrewfather(float voltage, float pressure, float temp, uint32_t valveActivationsPerHour);
+void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp, uint32_t valveActivationsPerHour);
 
 #endif // CLOUD_MANAGER_H

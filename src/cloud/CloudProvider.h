@@ -8,6 +8,7 @@ struct CloudPayload {
   float pressurePsi = 0.0f;
   float pressureBar = 0.0f;
   float temperatureC = 0.0f;
+  uint32_t valveActivationsPerHour = 0;
 };
 
 class CloudProvider {

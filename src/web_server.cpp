@@ -20,6 +20,7 @@ static RuntimeSnapshot readRuntimeSnapshot() {
         snapshot.pressure = runtimeState.currentPressure;
         snapshot.voltage = runtimeState.currentVoltage;
         snapshot.temperature = runtimeState.currentTemp;
+        snapshot.valveActivationsPerHour = runtimeState.valveActivationsPerHour;
         snapshot.manualOverride = runtimeState.manualOverride;
         snapshot.manualOn = runtimeState.manualOn;
         snapshot.manualStartTime = runtimeState.manualStartTime;
@@ -87,6 +88,7 @@ void handleApi() {
         String json = "{\"pressure\":" + String(runtime.pressure, 2) + 
                        ",\"voltage\":" + String(runtime.voltage, 2) + 
                        ",\"temperature\":" + String(runtime.temperature, 2) +
+                       ",\"valveActivationsPerHour\":" + String(runtime.valveActivationsPerHour) +
                        ",\"tempConnected\":" + (runtime.isTempSensorConnected ? "true" : "false") +
                        ",\"maxPressure\":" + String(cfg.maxPressureThreshold, 2) + 
                        ",\"pressureUnit\":" + String(cfg.pressureUnit) +

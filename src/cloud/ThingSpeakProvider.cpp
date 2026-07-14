@@ -43,7 +43,8 @@ void ThingSpeakProvider::send(const CloudPayload& payload) {
     String url = "/update?api_key=" + tsApiKey +
                  "&field1=" + String(payload.voltage, 3) +
                  "&field2=" + String(payload.pressurePsi, 2) +
-                 "&field3=" + String(payload.pressureBar, 2);
+                 "&field3=" + String(payload.pressureBar, 2) +
+                 "&field5=" + String(payload.valveActivationsPerHour);
 
     if (useTempSensor) {
       url += "&field4=" + String(payload.temperatureC, 2);

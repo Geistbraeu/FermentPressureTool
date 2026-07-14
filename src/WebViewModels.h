@@ -8,6 +8,7 @@ struct RuntimeSnapshot {
     float pressure = 0.0f;
     float voltage = 0.0f;
     float temperature = 0.0f;
+    uint32_t valveActivationsPerHour = 0;
     bool manualOverride = false;
     bool manualOn = false;
     unsigned long manualStartTime = 0;

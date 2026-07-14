@@ -175,6 +175,7 @@ void networkTask(void *pvParameters) {
 
   for (;;) {
     float vLocal = 0.0, pLocal = 0.0, tLocal = 0.0;
+    uint32_t valveActivationsPerHourLocal = 0;
     bool ready = false;
     int pressureUnit = 0;
     float maxPressureThreshold = 0.0f;
@@ -189,6 +190,7 @@ void networkTask(void *pvParameters) {
       vLocal = runtimeState.currentVoltage;
       pLocal = runtimeState.currentPressure;
       tLocal = runtimeState.currentTemp;
+      valveActivationsPerHourLocal = runtimeState.valveActivationsPerHour;
       ready = runtimeState.isDataReady;
       xSemaphoreGive(runtimeState.dataMutex);
     }
@@ -209,9 +211,9 @@ void networkTask(void *pvParameters) {
 
     // Выполняем отправку только если данные уже были считаны сенсором
     if (ready) {
-        sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal);
-        sendDataToBrewfather(vLocal, pLocal, tLocal);
-        sendDataViaCustomHTTP(vLocal, pLocal, pBar, tLocal);
+      sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal, valveActivationsPerHourLocal);
+      sendDataToBrewfather(vLocal, pLocal, tLocal, valveActivationsPerHourLocal);
+      sendDataViaCustomHTTP(vLocal, pLocal, pBar, tLocal, valveActivationsPerHourLocal);
     }
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
     if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {

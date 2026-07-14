@@ -1,9 +1,42 @@
 #include "device/SolenoidController.h"
 #include <Arduino.h>
+#include <string.h>
 #include "config.h"
 #include "debug.h"
+#include "RuntimeState.h"
 
 SolenoidController solenoidController;
+extern RuntimeState runtimeState;
+
+static constexpr uint32_t kValveActivationWindowSeconds = 3600U;
+
+static void trackValveActivationCycle(bool valveOpen) {
+  const uint32_t nowSecond = millis() / 1000U;
+
+  if (runtimeState.valveActivationLastSecond == 0U) {
+    runtimeState.valveActivationLastSecond = nowSecond;
+  }
+
+  const uint32_t elapsedSeconds = nowSecond - runtimeState.valveActivationLastSecond;
+  if (elapsedSeconds >= kValveActivationWindowSeconds) {
+    memset(runtimeState.valveActivationBuckets, 0, sizeof(runtimeState.valveActivationBuckets));
+    runtimeState.valveActivationsPerHour = 0U;
+  } else if (elapsedSeconds > 0U) {
+    for (uint32_t step = 1U; step <= elapsedSeconds; ++step) {
+      const uint32_t staleIndex = (runtimeState.valveActivationLastSecond + step) % kValveActivationWindowSeconds;
+      runtimeState.valveActivationsPerHour -= runtimeState.valveActivationBuckets[staleIndex];
+      runtimeState.valveActivationBuckets[staleIndex] = 0;
+    }
+  }
+
+  runtimeState.valveActivationLastSecond = nowSecond;
+
+  if (valveOpen) {
+    const uint32_t currentIndex = nowSecond % kValveActivationWindowSeconds;
+    ++runtimeState.valveActivationBuckets[currentIndex];
+    ++runtimeState.valveActivationsPerHour;
+  }
+}
 
 void SolenoidController::init() {
   pinMode(HardwareConfig::SOLENOID_PIN, OUTPUT);
@@ -24,6 +57,7 @@ void SolenoidController::applyState(bool manualOverride, bool manualOn, float cu
     initialized = true;
     lastManualOverride = true;
     lastValveOpen = valveOpen;
+    trackValveActivationCycle(valveOpen);
     return;
   }
 
@@ -51,4 +85,5 @@ void SolenoidController::applyState(bool manualOverride, bool manualOn, float cu
   initialized = true;
   lastManualOverride = false;
   lastValveOpen = valveOpen;
+  trackValveActivationCycle(valveOpen);
 }

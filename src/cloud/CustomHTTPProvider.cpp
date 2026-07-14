@@ -17,6 +17,7 @@ String CustomHTTPProvider::replacePlaceholders(String text, const CloudPayload& 
   text.replace("{psi}", String(payload.pressurePsi, 3));
   text.replace("{bar}", String(payload.pressureBar, 3));
   text.replace("{temp}", String(payload.temperatureC, 3));
+  text.replace("{valve_activations_per_hour}", String(payload.valveActivationsPerHour));
   return text;
 }
 

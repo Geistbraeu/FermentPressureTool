@@ -24,29 +24,32 @@ void initCloud() {
   cloudManager.init();
 }
 
-void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp) {
+void sendDataToThingSpeak(float voltage, float pressure, float pressureBar, float temp, uint32_t valveActivationsPerHour) {
   CloudPayload payload;
   payload.voltage = voltage;
   payload.pressurePsi = pressure;
   payload.pressureBar = pressureBar;
   payload.temperatureC = temp;
+  payload.valveActivationsPerHour = valveActivationsPerHour;
   cloudManager.sendThingSpeak(payload);
 }
 
-void sendDataToBrewfather(float voltage, float pressure, float temp) {
+void sendDataToBrewfather(float voltage, float pressure, float temp, uint32_t valveActivationsPerHour) {
   CloudPayload payload;
   payload.voltage = voltage;
   payload.pressurePsi = pressure;
   payload.pressureBar = pressure * 0.0689476f;
   payload.temperatureC = temp;
+  payload.valveActivationsPerHour = valveActivationsPerHour;
   cloudManager.sendBrewfather(payload);
 }
 
-void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp) {
+void sendDataViaCustomHTTP(float voltage, float pressure, float pressureBar, float temp, uint32_t valveActivationsPerHour) {
   CloudPayload payload;
   payload.voltage = voltage;
   payload.pressurePsi = pressure;
   payload.pressureBar = pressureBar;
   payload.temperatureC = temp;
+  payload.valveActivationsPerHour = valveActivationsPerHour;
   cloudManager.sendCustomHttp(payload);
 }

@@ -296,6 +296,12 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     else            html += "danger\" id=\"valve-state\">Manual Closed";
     html += R"rawhtml(</div>
     </div>
+    <div class="card">
+      <div class="card-label">Valve Activations / Hour</div>
+      <div class="card-value" id="valve-activations-per-hour">)rawhtml";
+    html += String(runtime.valveActivationsPerHour);
+    html += R"rawhtml(</div>
+    </div>
   </div>
 
   <!-- VALVE CONTROLS -->
@@ -606,7 +612,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">HTTP Path (supports {volt}, {psi}, {bar}, {temp})</label>
+          <label class="setting-label">HTTP Path (supports {volt}, {psi}, {bar}, {temp}, {valve_activations_per_hour})</label>
           <div class="setting-row">
             <input type="text" name="httpPath" value=")rawhtml";
     html += cfg.httpPath;
@@ -615,7 +621,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">JSON Body Template (optional, supports {volt}, {psi}, {bar}, {temp})</label>
+          <label class="setting-label">JSON Body Template (optional, supports {volt}, {psi}, {bar}, {temp}, {valve_activations_per_hour})</label>
           <div class="setting-row">
             <input type="text" name="httpBodyTemplate" value=")rawhtml";
     html += cfg.httpBodyTemplate;
@@ -688,6 +694,7 @@ const voltageEl = document.getElementById('voltage-v');
 const tempCardEl = document.getElementById('temp-card');
 const tempValueEl = document.getElementById('temp-c');
 const valveEl = document.getElementById('valve-state');
+const valveActivationsPerHourEl = document.getElementById('valve-activations-per-hour');
 const timerEl = document.getElementById('timer');
 const deviceNameEl = document.getElementById('device-name');
 const statusEl = document.getElementById('status-message');
@@ -773,6 +780,13 @@ async function refreshLiveData() {
 
     if (deviceNameEl && data.devName) {
       deviceNameEl.textContent = data.devName;
+    }
+
+    if (valveActivationsPerHourEl) {
+      const valveActivationsPerHour = Number(data.valveActivationsPerHour);
+      if (Number.isFinite(valveActivationsPerHour)) {
+        valveActivationsPerHourEl.textContent = String(Math.max(0, Math.floor(valveActivationsPerHour)));
+      }
     }
 
     setValveState(Boolean(data.manualOverride), Boolean(data.manualOn));
