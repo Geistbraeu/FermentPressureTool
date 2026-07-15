@@ -9,8 +9,7 @@
 **FermentPressureTool** — это IoT-устройство на базе ESP32, разработанное для точного контроля условий ферментации. Устройство позволяет отслеживать давление и температуру в емкости для ферментации, передавать данные в облачные сервисы и управлять клапаном сброса давления.
 
 <p align="center">
-   <img src="device.jpg" alt="FermentPressureTool device" width="560">
-   <img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
+   <img src="device.jpg" alt="FermentPressureTool device" width="560"><img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
 </p>
 
 ### Основные возможности:

@@ -9,8 +9,7 @@ A device for monitoring and controlling the fermentation process with real-time 
 **FermentPressureTool** is an ESP32-based IoT device designed for precise fermentation condition control. It reads pressure and temperature inside a fermentation vessel, uploads data to cloud services, and controls a pressure relief valve.
 
 <p align="center">
-   <img src="device.jpg" alt="FermentPressureTool device" width="560">
-   <img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
+   <img src="device.jpg" alt="FermentPressureTool device" width="560"><img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
 </p>
 
 ### Key Features
