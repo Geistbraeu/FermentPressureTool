@@ -1,111 +1,113 @@
+🌐 **English** | [Русский](README.ru.md)
+
 # FermentPressureTool
 
-Устройство для мониторинга и управления процессом ферментации с измерением давления и температуры в режиме реального времени.
+A device for monitoring and controlling the fermentation process with real-time pressure and temperature measurement.
 
-## 📋 Описание проекта
+## 📋 Project Overview
 
-**FermentPressureTool** — это IoT-устройство на базе ESP32, разработанное для точного контроля условий ферментации. Устройство позволяет отслеживать давление и температуру в емкости для ферментации, передавать данные в облачные сервисы и управлять клапаном сброса давления.
+**FermentPressureTool** is an ESP32-based IoT device designed for precise fermentation condition control. It reads pressure and temperature inside a fermentation vessel, uploads data to cloud services, and controls a pressure relief valve.
 
 <p align="center">
    <img src="device.jpg" alt="FermentPressureTool device" width="560">
 </p>
 
-### Основные возможности:
+### Key Features
 
-- 📊 **Мониторинг давления** — чтение аналогового датчика давления через АЦП
-- 🌡️ **Измерение температуры** — поддержка датчика DS18B20 через OneWire
-- 📡 **Облачная интеграция** — отправка данных в:
-  - **Brewfather** (платформа для пивоваров)
-   - **ThingSpeak** (IoT платформа)
-  - **Пользовательский HTTP API** (гибкая интеграция)
-- 🖥️ **Веб-интерфейс** — управление и мониторинг через браузер
-- 🔧 **Конфигурационный портал** — WiFi конфигурация без перепрошивки
-- 📱 **OLED дисплей** — попеременное отображение давления и температуры (SSD1306, 128x64)
-- 🤖 **Многопоточность** — параллельное выполнение сенсорных и сетевых операций
-- 💾 **Сохранение настроек** — Preferences/NVS для хранения конфигурации
+- 📊 **Pressure monitoring** — analog pressure sensor reading via ADC
+- 🌡️ **Temperature measurement** — DS18B20 sensor support over OneWire
+- 📡 **Cloud integration** — data upload to:
+  - **Brewfather** (homebrewing platform)
+  - **ThingSpeak** (IoT platform)
+  - **Custom HTTP API** (flexible integration)
+- 🖥️ **Web interface** — browser-based control and monitoring
+- 🔧 **Configuration portal** — WiFi setup without reflashing
+- 📱 **OLED display** — alternating pressure and temperature display (SSD1306, 128×64)
+- 🤖 **Multithreading** — parallel execution of sensor and network operations
+- 💾 **Persistent settings** — stored in Preferences/NVS
 
-## 🛠️ Аппаратное обеспечение
+## 🛠️ Hardware
 
-### Основной микроконтроллер
-- **ESP32-DevKit** — WiFi-enabled, двухъядерный микроконтроллер
+### Microcontroller
+- **ESP32-DevKit** — WiFi-enabled dual-core microcontroller
 
-### Датчики и модули
-- **Датчик давления** — аналоговый, подключен к `GPIO34` (ADC1_CH6)
-- **Датчик температуры** — DS18B20 (OneWire)
-   - DATA: `GPIO4`
-   - Между DATA и VCC нужен подтягивающий резистор 4.7 кОм
-- **OLED дисплей** — SSD1306 128x64 (I2C, адрес 0x3C)
-- **Соленоидный клапан** — управление через `GPIO27`
+### Sensors and Modules
+- **Pressure sensor** — analog, connected to `GPIO34` (ADC1_CH6)
+- **Temperature sensor** — DS18B20 (OneWire)
+  - DATA: `GPIO4`
+  - 4.7 kΩ pull-up resistor required between DATA and VCC
+- **OLED display** — SSD1306 128×64 (I2C, address 0x3C)
+- **Solenoid valve** — controlled via `GPIO27`
 
-### Подключение
-- Последовательное соединение (UART) для отладки на скорости 115200 бод
-- CH340 USB-UART конвертер для программирования
+### Connections
+- Serial (UART) at 115200 baud for debugging
+- CH340 USB-UART converter for programming
 
-## 📁 Структура проекта
+## 📁 Project Structure
 
 ```
 FermentPressureTool/
 ├── src/
-│   ├── main.cpp                 # Точка входа, инициализация
-│   ├── config.h                 # Центральные константы (пины, параметры)
-│   ├── Settings.h/cpp           # Управление сохраняемыми настройками
-│   ├── CloudManager.h/cpp       # Координация облачных провайдеров
-│   ├── ConfigPortal.h/cpp       # WiFi конфигурационный портал
-│   ├── web_server.h/cpp         # REST API и веб-интерфейс
-│   ├── RuntimeState.h            # Общие переменные между ядрами
-│   ├── debug.h                  # Макросы для отладки
-│   ├── html_template.h          # HTML для веб-интерфейса
+│   ├── main.cpp                 # Entry point, initialization
+│   ├── config.h                 # Central constants (pins, parameters)
+│   ├── Settings.h/cpp           # Persistent settings management
+│   ├── CloudManager.h/cpp       # Cloud provider coordination
+│   ├── ConfigPortal.h/cpp       # WiFi configuration portal
+│   ├── web_server.h/cpp         # REST API and web interface
+│   ├── RuntimeState.h           # Shared state between cores
+│   ├── debug.h                  # Debug macros
+│   ├── html_template.h          # Web UI HTML
 │   ├── cloud/
-│   │   ├── CloudProvider.h      # Базовый интерфейс провайдера
+│   │   ├── CloudProvider.h      # Base provider interface
 │   │   ├── BrewfatherProvider.h/cpp
 │   │   ├── ThingSpeakProvider.h/cpp
 │   │   └── CustomHTTPProvider.h/cpp
 │   └── device/
-│       ├── DisplayManager.h/cpp  # Управление OLED дисплеем
-│       ├── SensorManager.h/cpp   # Чтение датчиков (давление, температура)
-│       └── SolenoidController.h/cpp # Управление клапаном
-├── include/                     # Пользовательские библиотеки
-├── lib/                        # Внешние библиотеки
-├── test/                       # Тесты
-├── platformio.ini              # Конфигурация PlatformIO
-└── README.md                   # Этот файл
+│       ├── DisplayManager.h/cpp      # OLED display management
+│       ├── SensorManager.h/cpp       # Sensor reading (pressure, temperature)
+│       └── SolenoidController.h/cpp  # Valve control
+├── include/                     # User libraries
+├── lib/                         # External libraries
+├── test/                        # Tests
+├── platformio.ini               # PlatformIO configuration
+└── README.md                    # This file
 ```
 
-## 🔌 Компоненты ПО
+## 🔌 Software Components
 
 ### CloudManager
-Управляет отправкой данных на облачные платформы. Поддерживает несколько одновременных провайдеров.
+Coordinates data upload to cloud platforms. Supports multiple simultaneous providers.
 
 ### ConfigPortal
-WiFi конфигурационный портал для первоначальной настройки и переконфигурации сетевых параметров без необходимости перепрошивки.
+WiFi configuration portal for initial setup and reconfiguration without reflashing.
 
 ### SensorManager
-- Инициализация АЦП и калибровка из eFuse
-- Фильтрованное чтение давления (среднее по N сэмплам)
-- Чтение температуры с датчика DS18B20 через OneWire
+- ADC initialization and eFuse-based calibration
+- Filtered pressure reading (average of N samples)
+- DS18B20 temperature reading over OneWire
 
 ### DisplayManager
-Управление OLED дисплеем SSD1306 для попеременного отображения давления и температуры. Интервал переключения настраивается в веб-интерфейсе.
+Manages the SSD1306 OLED display, alternating between pressure and temperature. The switch interval is configurable via the web interface.
 
 ### WebServer
-REST API для:
-- Получения текущих данных датчиков
-- Управления клапаном
-- Изменения параметров системы
-- Отправки данных в облако
+REST API for:
+- Retrieving current sensor data
+- Controlling the valve
+- Changing system parameters
+- Triggering cloud uploads
 
 ### SolenoidController
-Управление соленоидным клапаном для сброса давления.
+Controls the solenoid valve for pressure relief.
 
-## 🚀 Начало работы
+## 🚀 Getting Started
 
-### Требования
-- **PlatformIO** — система сборки для встраиваемых систем
-- **VS Code** с расширением PlatformIO
-- **CH340 драйвер** — для программирования через USB
+### Requirements
+- **PlatformIO** — embedded build system
+- **VS Code** with the PlatformIO extension
+- **CH340 driver** — for USB programming
 
-### Установка зависимостей
-Зависимости указаны в `platformio.ini`:
+### Dependencies
+Declared in `platformio.ini`:
 ```
 adafruit/Adafruit SSD1306 @ ^2.5.9
 adafruit/Adafruit GFX Library @ ^1.11.9
@@ -114,117 +116,116 @@ paulstoffregen/OneWire @ ^2.3.8
 milesburton/DallasTemperature @ ^4.0.4
 ```
 
-### Сборка и загрузка
+### Build and Flash
 
-1. **Откройте проект в VS Code**
+1. **Open the project in VS Code**
    ```bash
    code d:\Projects\FermentPressureTool
    ```
 
-2. **Подключите ESP32 через USB**
+2. **Connect the ESP32 via USB**
 
-3. **Выберите окружение в PlatformIO**
-   - Выберите `esp32s` из доступных окружений
+3. **Select the environment in PlatformIO**
+   - Choose `esp32s` from the available environments
 
-4. **Соберите проект**
+4. **Build the project**
    ```bash
    pio run -e esp32s
    ```
 
-5. **Загрузите прошивку**
+5. **Upload the firmware**
    ```bash
    pio run -e esp32s --target upload
    ```
 
-6. **Откройте монитор последовательного порта**
+6. **Open the serial monitor**
    ```bash
    pio device monitor -e esp32s
    ```
 
-## ⚙️ Конфигурация
+## ⚙️ Configuration
 
-### Параметры сборки
-Встроенные флаги отладки в `platformio.ini`:
-- `APP_DEBUG_SERIAL=0` — уровень отладки (0=выключено)
+### Build Flags
+Debug flags defined in `platformio.ini`:
+- `APP_DEBUG_SERIAL=0` — debug level (0 = disabled)
 
-### Аппаратные пины (`src/config.h`)
-Все пины централизованно определены в `config.h`. Отредактируйте необходимые значения перед сборкой.
+### Hardware Pins (`src/config.h`)
+All pins are defined centrally in `config.h`. Edit the values before building as needed.
 
-### Сетевые параметры
-- **Hostname**: `ferment01` (доступен как `ferment01.local`)
-- **Порт веб-сервера**: 80
-- **Скорость UART**: 115200 бод
+### Network Parameters
+- **Hostname**: `ferment01` (accessible as `ferment01.local`)
+- **Web server port**: 80
+- **UART baud rate**: 115200
 
-### Облачные интеграции
-Настройте ключи API и параметры в конфигурационном портале или через веб-интерфейс:
+### Cloud Integrations
+Configure API keys and settings via the configuration portal or web interface:
 - **Brewfather API Key**
-- **ThingSpeak Channel ID и API Key**
+- **ThingSpeak Channel ID and API Key**
 - **Custom HTTP URL endpoint**
 
-### OLED и датчики
-- Давление и температура на OLED отображаются попеременно.
-- Интервал переключения настраивается в веб-интерфейсе, по умолчанию 3 секунды.
-- Если датчик температуры отключен, отображается только давление.
-- Если датчик давления не подключен, на экране показывается `Disconnected`, а данные в облака не отправляются.
+### OLED and Sensors
+- Pressure and temperature are shown alternately on the OLED.
+- The switch interval is configurable in the web interface; default is 3 seconds.
+- If the temperature sensor is disconnected, only pressure is shown.
+- If the pressure sensor is not connected, the display shows `Disconnected` and cloud uploads are skipped.
 
-## 🌐 Облачная интеграция
+## 🌐 Cloud Integration
 
 ### Brewfather
-Интеграция с популярной платформой для пивоваров. Отправляет данные о давлении и температуре.
+Integration with the popular homebrewing platform. Sends pressure and temperature data.
 
 ### ThingSpeak
-IoT платформа для хранения и визуализации данных. Поддерживает историю измерений и графики.
+IoT platform for data storage and visualization. Supports measurement history and charts.
 
-### Пользовательский HTTP API
-Гибкая интеграция с любым HTTP API для отправки данных в пользовательский бэкенд.
+### Custom HTTP API
+Flexible integration with any HTTP API to send data to a custom backend.
 
 ## 📊 REST API
 
-### Получить данные датчиков
+### Get Sensor Data
 ```
 GET /api
 ```
 
-Ответ:
+Response:
 ```json
 {
   "pressure": 1.5,
   "temperature": 22.5,
-   "voltage": 2.3,
-   "pressureConnected": true,
-   "tempConnected": true
+  "voltage": 2.3,
+  "pressureConnected": true,
+  "tempConnected": true
 }
 ```
 
-### Управление клапаном
+### Control the Valve
 ```
 POST /api
 Body: cmd=manual_on
 ```
 
-### Отправить данные в облако
-Облачная отправка выполняется автоматически в рабочем цикле прошивки и пропускается, если датчик давления отключен.
+### Cloud Upload
+Cloud uploads are performed automatically in the firmware's main loop and are skipped if the pressure sensor is disconnected.
 
-## 🔄 Архитектура многопоточности
+## 🔄 Multithreading Architecture
 
-Система использует два потока на разных ядрах ESP32:
-- **Core 1**: Сенсорные операции (чтение датчиков, управление клапаном)
-- **Core 0**: Сетевые операции (WiFi, облачные запросы, веб-сервер)
+The system uses two tasks running on separate ESP32 cores:
+- **Core 1**: Sensor operations (reading sensors, valve control)
+- **Core 0**: Network operations (WiFi, cloud requests, web server)
 
-Синхронизация через структуру `RuntimeState` с использованием семафоров.
+Synchronization is handled through the `RuntimeState` structure using semaphores.
 
-## 🐛 Отладка
+## 🐛 Debugging
 
-Отладочная информация выводится в UART при включении:
+Debug output is sent to UART when enabled:
 
 ```cpp
 DBG("Debug message here");
 ```
 
-Смотрите вывод в мониторе последовательного порта.
+View the output in the serial monitor.
 
+---
 
---
-
-**Версия**: 1.2.0  
-**Последнее обновление**: 2026-07-15
+**Version**: 1.2.0  
+**Last updated**: 2026-07-15
