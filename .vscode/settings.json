@@ -4,7 +4,6 @@
     "C_Cpp.autocomplete": "default",
     "C_Cpp.errorSquiggles": "enabled",
     "C_Cpp.default.configurationProvider": "platformio.platformio-ide",
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
 
     "chat.tools.terminal.autoApprove": {
         "/^C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe run$/": {
