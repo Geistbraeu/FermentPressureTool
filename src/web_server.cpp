@@ -25,6 +25,7 @@ static RuntimeSnapshot readRuntimeSnapshot() {
         snapshot.manualOn = runtimeState.manualOn;
         snapshot.manualStartTime = runtimeState.manualStartTime;
         snapshot.isTempSensorConnected = runtimeState.isTempSensorConnected;
+        snapshot.isPressureSensorConnected = runtimeState.isPressureSensorConnected;
         xSemaphoreGive(runtimeState.dataMutex);
     }
     return snapshot;
@@ -41,6 +42,7 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.pressureUnit = settings.pressureUnit;
         snapshot.hysteresis = settings.hysteresis;
         snapshot.updateIntervalMs = settings.updateIntervalMs;
+        snapshot.oledMetricSwitchSeconds = settings.oledMetricSwitchSeconds;
         snapshot.medianSampleCount = settings.medianSampleCount;
         snapshot.medianSampleDelayMs = settings.medianSampleDelayMs;
         snapshot.adaptiveAlphaMin = settings.adaptiveAlphaMin;
@@ -94,8 +96,10 @@ void handleApi() {
                        ",\"temperature\":" + String(runtime.temperature, 2) +
                        ",\"valveActivationsPerHour\":" + String(runtime.valveActivationsPerHour) +
                        ",\"tempConnected\":" + (runtime.isTempSensorConnected ? "true" : "false") +
+                       ",\"pressureConnected\":" + (runtime.isPressureSensorConnected ? "true" : "false") +
                        ",\"maxPressure\":" + String(cfg.maxPressureThreshold, 2) + 
                        ",\"pressureUnit\":" + String(cfg.pressureUnit) +
+                       ",\"oledSwapSec\":" + String(cfg.oledMetricSwitchSeconds) +
                        ",\"offsetVoltage\":" + String(cfg.offsetVoltage, 3) + 
                        ",\"useTempSensor\":" + (cfg.useTempSensor ? "true" : "false") +
                        ",\"devName\":\"" + cfg.devName + "\"" +
@@ -211,6 +215,20 @@ void handleApi() {
             } else {
                 if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
                     if (!settings.setUpdateIntervalMs(val)) saveFailed("updateInterval");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("oledSwapSec")) {
+            unsigned long val = server.arg("oledSwapSec").toInt();
+            if (!Validation::isValidOledMetricSwitchSeconds(val)) {
+                addError("oledSwapSec", "invalid_range_1_60");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setOledMetricSwitchSeconds(val)) saveFailed("oledSwapSec");
                     xSemaphoreGive(runtimeState.settingsMutex);
                 } else {
                     lockFailed("settingsMutex");

@@ -7,8 +7,20 @@
 class DisplayManager {
 public:
   bool init();
-  void update(const String& ipStatus, float voltage, float pressureBar, int pressureUnit, float maxPressureThreshold);
+  void update(const String& ipStatus,
+              float voltage,
+              float pressureBar,
+              int pressureUnit,
+              float maxPressureThreshold,
+              float temperatureC,
+              bool useTempSensor,
+              bool isTempSensorConnected,
+              unsigned long metricSwitchSeconds);
   bool isConnected() const;
+
+private:
+  unsigned long lastMetricSwitchMs = 0;
+  bool showTemperature = false;
 };
 
 // Shared OLED objects are used by ConfigPortal as well.

@@ -21,6 +21,7 @@ struct RuntimeState {
     uint16_t valveActivationBuckets[3600] = {0};
     bool isDataReady = false;
     bool isTempSensorConnected = false;
+    bool isPressureSensorConnected = false;
     SemaphoreHandle_t dataMutex = NULL;
     SemaphoreHandle_t settingsMutex = NULL;
     esp_adc_cal_characteristics_t adc_chars{};

@@ -115,6 +115,7 @@ void processSampledData() {
     if (runtimeState.hasSampledData) {
       runtimeState.currentVoltage = runtimeState.sampledVoltage;
       runtimeState.currentPressure = runtimeState.sampledPressure;
+      runtimeState.isPressureSensorConnected = runtimeState.currentVoltage >= SensorConfig::PRESSURE_DISCONNECTED_THRESHOLD_V;
       runtimeState.currentTemp = t;
       runtimeState.isDataReady = true;
 
@@ -193,9 +194,13 @@ void networkTask(void *pvParameters) {
   for (;;) {
     float vLocal = 0.0, pLocal = 0.0, tLocal = 0.0;
     uint32_t valveActivationsPerHourLocal = 0;
+    bool isTempSensorConnected = false;
+    bool isPressureSensorConnected = false;
     bool ready = false;
     int pressureUnit = 0;
     float maxPressureThreshold = 0.0f;
+    bool useTempSensor = false;
+    unsigned long oledMetricSwitchSeconds = ControlConfig::DEFAULT_OLED_METRIC_SWITCH_SECONDS;
 
     // Проверка подключения
     if (WiFi.status() != WL_CONNECTED) {
@@ -208,6 +213,8 @@ void networkTask(void *pvParameters) {
       pLocal = runtimeState.currentPressure;
       tLocal = runtimeState.currentTemp;
       valveActivationsPerHourLocal = runtimeState.valveActivationsPerHour;
+      isTempSensorConnected = runtimeState.isTempSensorConnected;
+      isPressureSensorConnected = runtimeState.isPressureSensorConnected;
       ready = runtimeState.isDataReady;
       xSemaphoreGive(runtimeState.dataMutex);
     }
@@ -215,6 +222,8 @@ void networkTask(void *pvParameters) {
     if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
       pressureUnit = settings.pressureUnit;
       maxPressureThreshold = settings.maxPressureThreshold;
+      useTempSensor = settings.useTempSensor;
+      oledMetricSwitchSeconds = settings.oledMetricSwitchSeconds;
       xSemaphoreGive(runtimeState.settingsMutex);
     }
 
@@ -224,10 +233,18 @@ void networkTask(void *pvParameters) {
       ipStr = WiFi.localIP().toString();
     }
     float pBar = pLocal * SensorConfig::PSI_TO_BAR;
-    displayManager.update(ipStr, vLocal, pBar, pressureUnit, maxPressureThreshold);
+    displayManager.update(ipStr,
+                          vLocal,
+                          pBar,
+                          pressureUnit,
+                          maxPressureThreshold,
+                          tLocal,
+                          useTempSensor,
+                          isTempSensorConnected,
+                          oledMetricSwitchSeconds);
 
     // Выполняем отправку только если данные уже были считаны сенсором
-    if (ready) {
+    if (ready && isPressureSensorConnected) {
       sendDataToThingSpeak(vLocal, pLocal, pBar, tLocal, valveActivationsPerHourLocal);
       sendDataToBrewfather(vLocal, pLocal, tLocal, valveActivationsPerHourLocal);
       sendDataViaCustomHTTP(vLocal, pLocal, pBar, tLocal, valveActivationsPerHourLocal);

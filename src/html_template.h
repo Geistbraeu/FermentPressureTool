@@ -256,14 +256,26 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
   <div class="cards">
     <div class="card">
       <div class="card-label">Pressure</div>
-      <div class="card-value accent" id="pressure-psi">)rawhtml";
-    html += String(runtime.pressure, 2) + " PSI";
+      <div class="card-value )rawhtml";
+    html += runtime.isPressureSensorConnected ? "accent" : "danger";
+    html += R"rawhtml(" id="pressure-psi">)rawhtml";
+    if (runtime.isPressureSensorConnected) {
+      html += String(runtime.pressure, 2) + " PSI";
+    } else {
+      html += "Disconnected";
+    }
     html += R"rawhtml(</div>
     </div>
     <div class="card">
       <div class="card-label">Pressure</div>
-      <div class="card-value accent" id="pressure-bar">)rawhtml";
-    html += String(pBar, 2) + " Bar";
+      <div class="card-value )rawhtml";
+    html += runtime.isPressureSensorConnected ? "accent" : "danger";
+    html += R"rawhtml(" id="pressure-bar">)rawhtml";
+    if (runtime.isPressureSensorConnected) {
+      html += String(pBar, 2) + " Bar";
+    } else {
+      html += "Disconnected";
+    }
     html += R"rawhtml(</div>
     </div>
     <div class="card">
@@ -403,6 +415,18 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
           <div class="setting-row">
             <input type="number" name="updateInterval" value=")rawhtml";
     html += String(cfg.updateIntervalMs);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">OLED Switch Interval (s)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" min="1" max="60" name="oledSwapSec" value=")rawhtml";
+    html += String(cfg.oledMetricSwitchSeconds);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
           </div>
@@ -817,10 +841,18 @@ async function refreshLiveData() {
     const data = await response.json();
     const pressure = Number(data.pressure);
     const voltage = Number(data.voltage);
+    const pressureConnected = Boolean(data.pressureConnected);
 
-    if (Number.isFinite(pressure)) {
+    if (pressureConnected && Number.isFinite(pressure)) {
+      pressurePsiEl.className = 'card-value accent';
+      pressureBarEl.className = 'card-value accent';
       pressurePsiEl.textContent = pressure.toFixed(2) + ' PSI';
       pressureBarEl.textContent = (pressure * 0.0689476).toFixed(2) + ' Bar';
+    } else {
+      pressurePsiEl.className = 'card-value danger';
+      pressureBarEl.className = 'card-value danger';
+      pressurePsiEl.textContent = 'Disconnected';
+      pressureBarEl.textContent = 'Disconnected';
     }
 
     if (Number.isFinite(voltage)) {

@@ -12,6 +12,7 @@ public:
     int pressureUnit;
     float hysteresis;
     unsigned long updateIntervalMs;
+    unsigned long oledMetricSwitchSeconds;
     unsigned int medianSampleCount;
     unsigned long medianSampleDelayMs;
     float adaptiveAlphaMin;
@@ -48,6 +49,7 @@ public:
     bool setPressureUnit(int val);
     bool setHysteresis(float val);
     bool setUpdateIntervalMs(unsigned long val);
+    bool setOledMetricSwitchSeconds(unsigned long val);
     bool setMedianSampleCount(unsigned int val);
     bool setMedianSampleDelayMs(unsigned long val);
     bool setAdaptiveAlphaMin(float val);

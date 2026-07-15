@@ -53,6 +53,14 @@ namespace Validation {
   }
 
   /**
+   * OLED metric switch interval validation (seconds)
+   * Valid range: 1 - 60 s
+   */
+  inline bool isValidOledMetricSwitchSeconds(unsigned long val) {
+    return val >= 1 && val <= 60;
+  }
+
+  /**
    * Median sample count validation
    * Valid range: 3-31, must be odd number
    */

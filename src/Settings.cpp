@@ -62,6 +62,7 @@ void Settings::load() {
     pressureUnit = prefs.getInt("pUnit", 0);
     hysteresis = prefs.getFloat("hysteresis", 0.5);
     updateIntervalMs = prefs.getULong("updateInterval", ControlConfig::DEFAULT_UPDATE_INTERVAL_MS);
+    oledMetricSwitchSeconds = prefs.getULong("oledSwapSec", ControlConfig::DEFAULT_OLED_METRIC_SWITCH_SECONDS);
     medianSampleCount = prefs.getULong("medianCount", ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT);
     medianSampleDelayMs = prefs.getULong("medianDelay", ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS);
     adaptiveAlphaMin = prefs.getFloat("pfAlphaMin", ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN);
@@ -83,6 +84,9 @@ void Settings::load() {
     }
     if (adaptiveJitterDeadbandPsi < 0.0f || adaptiveJitterDeadbandPsi >= adaptiveDeltaRefPsi) {
         adaptiveJitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
+    }
+    if (oledMetricSwitchSeconds < 1 || oledMetricSwitchSeconds > 60) {
+        oledMetricSwitchSeconds = ControlConfig::DEFAULT_OLED_METRIC_SWITCH_SECONDS;
     }
     tsIntervalSeconds = prefs.getULong("tsInterval", CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC);
     bfIntervalMinutes = prefs.getULong("bfInterval", CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN);
@@ -144,6 +148,13 @@ bool Settings::setUpdateIntervalMs(unsigned long val) {
     if (updateIntervalMs == val) return true;
     updateIntervalMs = val;
     return saveULong("updateInterval", val);
+}
+
+bool Settings::setOledMetricSwitchSeconds(unsigned long val) {
+    if (val < 1 || val > 60) return false;
+    if (oledMetricSwitchSeconds == val) return true;
+    oledMetricSwitchSeconds = val;
+    return saveULong("oledSwapSec", val);
 }
 
 bool Settings::setMedianSampleCount(unsigned int val) {

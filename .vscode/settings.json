@@ -34,6 +34,15 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "&": true
+        "&": true,
+        "/^\"C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe\" run > compile_output\\.txt 2>&1 ; powershell -Command \"Get-Content compile_output\\.txt -Tail 80\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c \"\\\\\"C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe\\\\\" run\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "C:\\Users\\GhostDemon\\.platformio\\penv\\Scripts\\platformio.exe": true
     }
 }

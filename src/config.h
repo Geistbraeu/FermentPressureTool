@@ -48,6 +48,7 @@ namespace DisplayConfig {
 namespace SensorConfig {
   // DS18B20 disconnect sentinel handling
   constexpr float TEMP_DISCONNECTED_C = -127.0;
+  constexpr float PRESSURE_DISCONNECTED_THRESHOLD_V = 0.3f;
 
   // Pressure sensor calibration
   constexpr float PRESSURE_OFFSET_DEFAULT = 0.515;  // Volts
@@ -85,6 +86,7 @@ namespace ControlConfig {
   constexpr unsigned long DEFAULT_UPDATE_INTERVAL_MS = 200;
   constexpr unsigned int DEFAULT_MEDIAN_SAMPLE_COUNT = 5;
   constexpr unsigned long DEFAULT_MEDIAN_SAMPLE_DELAY_MS = 10;
+  constexpr unsigned long DEFAULT_OLED_METRIC_SWITCH_SECONDS = 3;
 }
 
 // ==================== NETWORK & mDNS ====================

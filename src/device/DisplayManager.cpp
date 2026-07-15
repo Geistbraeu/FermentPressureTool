@@ -10,6 +10,7 @@ DisplayManager displayManager;
 bool DisplayManager::init() {
   if (display.begin(SSD1306_SWITCHCAPVCC, DisplayConfig::OLED_I2C_ADDRESS)) {
     isOledConnected = true;
+    display.cp437(true);
     display.clearDisplay();
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
@@ -23,9 +24,34 @@ bool DisplayManager::init() {
   return false;
 }
 
-void DisplayManager::update(const String& ipStatus, float voltage, float pressureBar, int pressureUnit, float maxPressureThreshold) {
+void DisplayManager::update(const String& ipStatus,
+                            float voltage,
+                            float pressureBar,
+                            int pressureUnit,
+                            float maxPressureThreshold,
+                            float temperatureC,
+                            bool useTempSensor,
+                            bool isTempSensorConnected,
+                            unsigned long metricSwitchSeconds) {
   if (!isOledConnected) {
     return;
+  }
+
+  const bool canShowTemperature = useTempSensor && isTempSensorConnected;
+  const unsigned long switchIntervalMs = ((metricSwitchSeconds < 1) ? 1 : metricSwitchSeconds) * 1000UL;
+  const unsigned long now = millis();
+
+  if (!canShowTemperature) {
+    showTemperature = false;
+    lastMetricSwitchMs = now;
+  } else {
+    if (lastMetricSwitchMs == 0) {
+      lastMetricSwitchMs = now;
+    }
+    if ((unsigned long)(now - lastMetricSwitchMs) >= switchIntervalMs) {
+      showTemperature = !showTemperature;
+      lastMetricSwitchMs = now;
+    }
   }
 
   display.clearDisplay();
@@ -47,19 +73,34 @@ void DisplayManager::update(const String& ipStatus, float voltage, float pressur
   display.print(maxPStr);
   display.drawLine(0, 15, DisplayConfig::SCREEN_WIDTH - 1, 15, SSD1306_WHITE);
 
-  display.setTextSize(3);
-  display.setCursor(5, 20);
-  if (pDisplay < 10.0f) {
-    display.print(pDisplay, 2);
-  } else if (pDisplay < 100.0f) {
-    display.print(pDisplay, 1);
-  } else {
-    display.print((int)pDisplay);
-  }
+  if (canShowTemperature && showTemperature) {
+    display.setTextSize(3);
+    display.setCursor(7, 20);
+    if (temperatureC > -10.0f && temperatureC < 100.0f) {
+      display.print(temperatureC, 1);
+    } else {
+      display.print((int)temperatureC);
+    }
 
-  display.setTextSize(2);
-  display.setCursor(DisplayConfig::LAYOUT_X_CENTER, DisplayConfig::LAYOUT_Y_PRESSURE);
-  display.print(unitStr);
+    display.setTextSize(2);
+    display.setCursor(DisplayConfig::LAYOUT_X_CENTER, DisplayConfig::LAYOUT_Y_PRESSURE);
+    display.write((char)248); // degree symbol in CP437
+    display.print("C");
+  } else {
+    display.setTextSize(3);
+    display.setCursor(5, 20);
+    if (pDisplay < 10.0f) {
+      display.print(pDisplay, 2);
+    } else if (pDisplay < 100.0f) {
+      display.print(pDisplay, 1);
+    } else {
+      display.print((int)pDisplay);
+    }
+
+    display.setTextSize(2);
+    display.setCursor(DisplayConfig::LAYOUT_X_CENTER, DisplayConfig::LAYOUT_Y_PRESSURE);
+    display.print(unitStr);
+  }
 
   display.setTextSize(1);
   display.setCursor(0, DisplayConfig::LAYOUT_Y_MANUAL);

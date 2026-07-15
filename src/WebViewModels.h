@@ -13,6 +13,7 @@ struct RuntimeSnapshot {
     bool manualOn = false;
     unsigned long manualStartTime = 0;
     bool isTempSensorConnected = false;
+    bool isPressureSensorConnected = false;
 };
 
 struct SettingsSnapshot {
@@ -20,6 +21,7 @@ struct SettingsSnapshot {
     int pressureUnit = 0;
     float hysteresis = 0.0f;
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
+    unsigned long oledMetricSwitchSeconds = ControlConfig::DEFAULT_OLED_METRIC_SWITCH_SECONDS;
     unsigned int medianSampleCount = ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT;
     unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
     float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
