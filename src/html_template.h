@@ -739,6 +739,10 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     </div><!-- /panel-wifi -->
   </div><!-- /tabs-body -->
 
+  <div style="margin-top:16px; text-align:center; font-size:0.85rem;">
+    <a href="https://github.com/Geistbraeu/FermentPressureTool" target="_blank" rel="noopener noreferrer" style="color:#67e8f9; font-weight:700; text-decoration:none;">GitHub: FermentPressureTool</a>
+  </div>
+
 </div><!-- /container -->
 
 <script>

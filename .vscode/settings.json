@@ -29,6 +29,11 @@
         "/^C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe run > build\\.log 2>&1; Get-Content build\\.log -Tail 30$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "/^C:\\\\Users\\\\GhostDemon\\\\\\.platformio\\\\penv\\\\Scripts\\\\platformio\\.exe run; Write-Output \"EXIT_CODE:\\$LASTEXITCODE\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "&": true
     }
 }

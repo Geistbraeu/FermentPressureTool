@@ -19,7 +19,10 @@ static void handleRoot() {
                   "SSID: <input type='text' name='ssid'><br>"
                   "Password: <input type='password' name='pass'><br>"
                   "<input type='submit' value='Save'>"
-                  "</form></body></html>";
+                  "</form><br>"
+                  "<a href='https://github.com/Geistbraeu/FermentPressureTool' target='_blank' rel='noopener noreferrer' style='color:#0057ff;font-weight:700;'>"
+                  "GitHub: FermentPressureTool"
+                  "</a></body></html>";
     portalServer.send(200, "text/html", html);
 }
 
