@@ -20,6 +20,14 @@ void CloudManager::sendCustomHttp(const CloudPayload& payload) {
   customHttpProvider.send(payload);
 }
 
+unsigned long CloudManager::getLastTsSyncMs() const  { return thingSpeakProvider.getLastSendMs(); }
+unsigned long CloudManager::getLastBfSyncMs() const   { return brewfatherProvider.getLastSendMs(); }
+unsigned long CloudManager::getLastHttpSyncMs() const { return customHttpProvider.getLastSendMs(); }
+
+unsigned long cloudLastTsSyncMs()   { return cloudManager.getLastTsSyncMs(); }
+unsigned long cloudLastBfSyncMs()   { return cloudManager.getLastBfSyncMs(); }
+unsigned long cloudLastHttpSyncMs() { return cloudManager.getLastHttpSyncMs(); }
+
 void initCloud() {
   cloudManager.init();
 }

@@ -27,6 +27,9 @@ protected:
   void markSent(unsigned long nowMs) {
     lastSendMs = nowMs;
   }
+
+public:
+  unsigned long getLastSendMs() const { return lastSendMs; }
 };
 
 #endif // CLOUD_PROVIDER_H

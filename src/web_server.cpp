@@ -9,6 +9,7 @@
 #include "WebViewModels.h"
 #include "Settings.h"
 #include "RuntimeState.h"
+#include "CloudManager.h"
 
 extern RuntimeState runtimeState;
 
@@ -105,7 +106,11 @@ void handleApi() {
                        ",\"devName\":\"" + cfg.devName + "\"" +
                        ",\"manualOverride\":" + (runtime.manualOverride ? "true" : "false") +
                        ",\"manualOn\":" + (runtime.manualOn ? "true" : "false") +
-                       ",\"remainingTime\":" + String(remaining) + "}";
+                       ",\"remainingTime\":" + String(remaining) +
+                       ",\"nowMs\":" + String(millis()) +
+                       ",\"lastTsSyncMs\":" + String(cloudLastTsSyncMs()) +
+                       ",\"lastBfSyncMs\":" + String(cloudLastBfSyncMs()) +
+                       ",\"lastHttpSyncMs\":" + String(cloudLastHttpSyncMs()) + "}";
         server.send(200, "application/json", json);
     } else if (server.method() == HTTP_POST) {
         String errorsJson = "";

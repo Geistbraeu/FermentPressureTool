@@ -225,8 +225,13 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--accent2);
-    margin-bottom: 12px;
+    margin-bottom: 4px;
     font-weight: 700;
+  }
+  .cloud-last-sync {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
   }
 
   /* TIMER */
@@ -562,6 +567,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     <div class="tab-panel" id="panel-cloud">
 
       <div class="section-title">ThingSpeak</div>
+      <p class="cloud-last-sync" id="ts-last-sync">Last sync: —</p>
 
       <form action="/api" method="POST">
         <div class="setting-group">
@@ -605,6 +611,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
 
       <hr class="divider">
       <div class="section-title">Brewfather</div>
+      <p class="cloud-last-sync" id="bf-last-sync">Last sync: —</p>
 
       <form action="/api" method="POST">
         <div class="setting-group">
@@ -671,6 +678,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
 
       <hr class="divider">
       <div class="section-title">Custom HTTP POST</div>
+      <p class="cloud-last-sync" id="http-last-sync">Last sync: —</p>
 
       <form action="/api" method="POST">
         <div class="setting-group">
@@ -888,6 +896,23 @@ async function refreshLiveData() {
 
     setValveState(Boolean(data.manualOverride), Boolean(data.manualOn));
     setManualTimer(Boolean(data.manualOverride), Number(data.remainingTime));
+
+    if (data.nowMs !== undefined) {
+      function fmtSync(nowMs, syncMs) {
+        if (!syncMs) return '—';
+        const s = Math.floor((nowMs - syncMs) / 1000);
+        if (s < 60) return s + 's ago';
+        if (s < 3600) return Math.floor(s / 60) + 'min ago';
+        return Math.floor(s / 3600) + 'h ago';
+      }
+      const nowMs = Number(data.nowMs);
+      const tsEl   = document.getElementById('ts-last-sync');
+      const bfEl   = document.getElementById('bf-last-sync');
+      const httpEl = document.getElementById('http-last-sync');
+      if (tsEl)   tsEl.textContent   = 'Last sync: ' + fmtSync(nowMs, Number(data.lastTsSyncMs));
+      if (bfEl)   bfEl.textContent   = 'Last sync: ' + fmtSync(nowMs, Number(data.lastBfSyncMs));
+      if (httpEl) httpEl.textContent = 'Last sync: ' + fmtSync(nowMs, Number(data.lastHttpSyncMs));
+    }
   } catch (e) {
     // Ignore transient network or parsing failures; next poll will retry.
   }
