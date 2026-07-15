@@ -350,6 +350,9 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     <button class="tab-btn" type="button" onclick="switchTab('wifi', this)" id="tab-wifi">
       &#128246; WiFi
     </button>
+    <button class="tab-btn" type="button" onclick="switchTab('firmware', this)" id="tab-firmware">
+      &#128190; Firmware
+    </button>
   </div>
 
   <div class="tabs-body">
@@ -769,6 +772,54 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
         </div>
       </form>
     </div><!-- /panel-wifi -->
+
+    <!-- TAB: FIRMWARE -->
+    <div class="tab-panel" id="panel-firmware">
+      <div class="section-title">Installed Firmware</div>
+
+      <div class="setting-group">
+        <label class="setting-label">Version</label>
+        <div class="setting-row">
+          <input type="text" id="fw-version" readonly value=")rawhtml";
+    html += cfg.firmwareVersion;
+    html += R"rawhtml(">
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Build Date</label>
+        <div class="setting-row">
+          <input type="text" id="fw-build-date" readonly value=")rawhtml";
+    html += cfg.firmwareBuildDate;
+    html += R"rawhtml(">
+        </div>
+      </div>
+
+      <p class="cloud-last-sync" id="fw-build-label">)rawhtml";
+    html += cfg.firmwareVersion;
+    html += " from ";
+    html += cfg.firmwareBuildDate;
+    html += R"rawhtml(</p>
+
+      <hr class="divider">
+      <div class="section-title">OTA Update</div>
+      <form action="/update" method="POST" enctype="multipart/form-data" id="firmware-update-form">
+        <div class="setting-group">
+          <label class="setting-label">Firmware Binary (.bin)</label>
+          <div class="setting-row">
+            <input type="file" name="firmware" accept=".bin,application/octet-stream" required>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-row">
+            <button class="btn-set" type="submit">Update</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="cloud-last-sync">After successful upload, device will reboot automatically.</p>
+    </div><!-- /panel-firmware -->
   </div><!-- /tabs-body -->
 
   <div style="margin-top:16px; text-align:center; font-size:0.85rem;">
@@ -795,6 +846,9 @@ const valveActivationsPerHourEl = document.getElementById('valve-activations-per
 const timerEl = document.getElementById('timer');
 const deviceNameEl = document.getElementById('device-name');
 const statusEl = document.getElementById('status-message');
+const firmwareVersionEl = document.getElementById('fw-version');
+const firmwareBuildDateEl = document.getElementById('fw-build-date');
+const firmwareBuildLabelEl = document.getElementById('fw-build-label');
 
 function showStatus(message, kind) {
   if (!statusEl) return;
@@ -839,6 +893,21 @@ function setManualTimer(manualOverride, remainingMs) {
   }
 
   timerEl.textContent = 'Manual mode: ' + Math.floor(remainingMs / 1000) + 's remaining';
+}
+
+function setFirmwareInfo(version, buildDate) {
+  const resolvedVersion = (typeof version === 'string' && version.length > 0) ? version : 'Unknown';
+  const resolvedBuildDate = (typeof buildDate === 'string' && buildDate.length > 0) ? buildDate : 'Unknown';
+
+  if (firmwareVersionEl) {
+    firmwareVersionEl.value = resolvedVersion;
+  }
+  if (firmwareBuildDateEl) {
+    firmwareBuildDateEl.value = resolvedBuildDate;
+  }
+  if (firmwareBuildLabelEl) {
+    firmwareBuildLabelEl.textContent = resolvedVersion + ' from ' + resolvedBuildDate;
+  }
 }
 
 async function refreshLiveData() {
@@ -913,6 +982,8 @@ async function refreshLiveData() {
       if (bfEl)   bfEl.textContent   = 'Last sync: ' + fmtSync(nowMs, Number(data.lastBfSyncMs));
       if (httpEl) httpEl.textContent = 'Last sync: ' + fmtSync(nowMs, Number(data.lastHttpSyncMs));
     }
+
+    setFirmwareInfo(data.firmwareVersion, data.firmwareBuildDate);
   } catch (e) {
     // Ignore transient network or parsing failures; next poll will retry.
   }
@@ -964,6 +1035,52 @@ async function submitSettingsForm(event) {
 document.querySelectorAll('form[action="/api"][method="POST"]').forEach(form => {
   form.addEventListener('submit', submitSettingsForm);
 });
+
+async function submitFirmwareForm(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const fileInput = form.querySelector('input[type="file"]');
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    showStatus('Select firmware binary file first.', 'error');
+    return;
+  }
+
+  const body = new FormData(form);
+  showStatus('Uploading firmware. Please wait...', 'success');
+
+  try {
+    const response = await fetch(form.action || '/update', {
+      method: 'POST',
+      body,
+      cache: 'no-store'
+    });
+
+    const responseText = await response.text();
+    let data = null;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      showStatus('Unexpected response during firmware update.', 'error');
+      return;
+    }
+
+    if (response.ok && data && data.success) {
+      showStatus(data.message || 'Firmware uploaded. Device rebooting...', 'success');
+      return;
+    }
+
+    const message = data && data.message ? data.message : 'Firmware update failed.';
+    showStatus(message, 'error');
+  } catch (networkError) {
+    showStatus('Network error during firmware upload.', 'error');
+  }
+}
+
+const firmwareForm = document.getElementById('firmware-update-form');
+if (firmwareForm) {
+  firmwareForm.addEventListener('submit', submitFirmwareForm);
+}
 
 refreshLiveData();
 setInterval(refreshLiveData, 1000);

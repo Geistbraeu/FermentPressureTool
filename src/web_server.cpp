@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <Update.h>
+#include <cstring>
 #include "config.h"
 #include "validation.h"
 #include "web_server.h"
@@ -14,6 +16,74 @@
 extern RuntimeState runtimeState;
 
 WebServer server(80);
+
+#ifndef APP_VERSION
+#define APP_VERSION "dev"
+#endif
+
+#ifndef APP_BUILD_DATE
+#define APP_BUILD_DATE __DATE__
+#endif
+
+static bool firmwareUpdateHasError = false;
+static String firmwareUpdateErrorMessage;
+
+static String monthToNumber(const char* month) {
+    if (strcmp(month, "Jan") == 0) return "01";
+    if (strcmp(month, "Feb") == 0) return "02";
+    if (strcmp(month, "Mar") == 0) return "03";
+    if (strcmp(month, "Apr") == 0) return "04";
+    if (strcmp(month, "May") == 0) return "05";
+    if (strcmp(month, "Jun") == 0) return "06";
+    if (strcmp(month, "Jul") == 0) return "07";
+    if (strcmp(month, "Aug") == 0) return "08";
+    if (strcmp(month, "Sep") == 0) return "09";
+    if (strcmp(month, "Oct") == 0) return "10";
+    if (strcmp(month, "Nov") == 0) return "11";
+    if (strcmp(month, "Dec") == 0) return "12";
+    return "00";
+}
+
+static String formatBuildDateDdMmYyyy(const char* buildDateRaw) {
+    if (buildDateRaw == nullptr) {
+        return "Unknown";
+    }
+
+    // Expected input format: "Mmm dd yyyy" from __DATE__
+    if (strlen(buildDateRaw) < 11) {
+        return String(buildDateRaw);
+    }
+
+    char month[4] = { buildDateRaw[0], buildDateRaw[1], buildDateRaw[2], '\0' };
+    String monthNumber = monthToNumber(month);
+
+    char day[3] = { buildDateRaw[4], buildDateRaw[5], '\0' };
+    if (day[0] == ' ') {
+        day[0] = '0';
+    }
+
+    char year[5] = { buildDateRaw[7], buildDateRaw[8], buildDateRaw[9], buildDateRaw[10], '\0' };
+    return String(day) + "." + monthNumber + "." + String(year);
+}
+
+static String escapeJsonString(const String& value) {
+    String escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    return escaped;
+}
+
+static String getFirmwareVersion() {
+    return String(APP_VERSION);
+}
+
+static String getFirmwareBuildDate() {
+    return formatBuildDateDdMmYyyy(APP_BUILD_DATE);
+}
+
+static String updateErrorToMessage() {
+    return "Update error code: " + String(Update.getError());
+}
 
 static RuntimeSnapshot readRuntimeSnapshot() {
     RuntimeSnapshot snapshot;
@@ -71,6 +141,10 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.pass = wifiSettings.pass;
         xSemaphoreGive(runtimeState.settingsMutex);
     }
+
+    snapshot.firmwareVersion = getFirmwareVersion();
+    snapshot.firmwareBuildDate = getFirmwareBuildDate();
+
     return snapshot;
 }
 
@@ -110,7 +184,9 @@ void handleApi() {
                        ",\"nowMs\":" + String(millis()) +
                        ",\"lastTsSyncMs\":" + String(cloudLastTsSyncMs()) +
                        ",\"lastBfSyncMs\":" + String(cloudLastBfSyncMs()) +
-                       ",\"lastHttpSyncMs\":" + String(cloudLastHttpSyncMs()) + "}";
+                       ",\"lastHttpSyncMs\":" + String(cloudLastHttpSyncMs()) +
+                       ",\"firmwareVersion\":\"" + escapeJsonString(cfg.firmwareVersion) + "\"" +
+                       ",\"firmwareBuildDate\":\"" + escapeJsonString(cfg.firmwareBuildDate) + "\"}";
         server.send(200, "application/json", json);
     } else if (server.method() == HTTP_POST) {
         String errorsJson = "";
@@ -542,9 +618,64 @@ void handleApi() {
     }
 }
 
+void handleFirmwareUpdateUpload() {
+    HTTPUpload& upload = server.upload();
+
+    if (upload.status == UPLOAD_FILE_START) {
+        firmwareUpdateHasError = false;
+        firmwareUpdateErrorMessage = "";
+
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+            firmwareUpdateHasError = true;
+            firmwareUpdateErrorMessage = updateErrorToMessage();
+        }
+        return;
+    }
+
+    if (upload.status == UPLOAD_FILE_WRITE) {
+        if (firmwareUpdateHasError) {
+            return;
+        }
+
+        size_t written = Update.write(upload.buf, upload.currentSize);
+        if (written != upload.currentSize) {
+            firmwareUpdateHasError = true;
+            firmwareUpdateErrorMessage = updateErrorToMessage();
+        }
+        return;
+    }
+
+    if (upload.status == UPLOAD_FILE_END) {
+        if (!firmwareUpdateHasError && !Update.end(true)) {
+            firmwareUpdateHasError = true;
+            firmwareUpdateErrorMessage = updateErrorToMessage();
+        }
+        return;
+    }
+
+    if (upload.status == UPLOAD_FILE_ABORTED) {
+        firmwareUpdateHasError = true;
+        firmwareUpdateErrorMessage = "Upload aborted";
+        Update.abort();
+    }
+}
+
+void handleFirmwareUpdateResult() {
+    if (firmwareUpdateHasError) {
+        String json = "{\"success\":false,\"message\":\"" + escapeJsonString(firmwareUpdateErrorMessage) + "\"}";
+        server.send(400, "application/json", json);
+        return;
+    }
+
+    server.send(200, "application/json", "{\"success\":true,\"message\":\"Firmware uploaded. Rebooting...\"}");
+    delay(250);
+    ESP.restart();
+}
+
 void webServerTask(void *pvParameters) {
     server.on("/", handleRoot);
     server.on("/api", handleApi);
+    server.on("/update", HTTP_POST, handleFirmwareUpdateResult, handleFirmwareUpdateUpload);
     server.begin();
     for (;;) {
         server.handleClient();

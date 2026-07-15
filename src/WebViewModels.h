@@ -47,6 +47,8 @@ struct SettingsSnapshot {
     String devName;
     String ssid;
     String pass;
+    String firmwareVersion;
+    String firmwareBuildDate;
 };
 
 #endif // WEB_VIEW_MODELS_H
