@@ -14,6 +14,10 @@ public:
     unsigned long updateIntervalMs;
     unsigned int medianSampleCount;
     unsigned long medianSampleDelayMs;
+    float adaptiveAlphaMin;
+    float adaptiveAlphaMax;
+    float adaptiveDeltaRefPsi;
+    float adaptiveJitterDeadbandPsi;
     unsigned long tsIntervalSeconds;
     unsigned long bfIntervalMinutes;
     float offsetVoltage;
@@ -46,6 +50,10 @@ public:
     bool setUpdateIntervalMs(unsigned long val);
     bool setMedianSampleCount(unsigned int val);
     bool setMedianSampleDelayMs(unsigned long val);
+    bool setAdaptiveAlphaMin(float val);
+    bool setAdaptiveAlphaMax(float val);
+    bool setAdaptiveDeltaRefPsi(float val);
+    bool setAdaptiveJitterDeadbandPsi(float val);
     bool setTsIntervalSeconds(unsigned long val);
     bool setBfIntervalMinutes(unsigned long val);
     bool setOffsetVoltage(float val);

@@ -16,11 +16,17 @@ public:
   float readTemperature(bool isEnabled, float tempOffset, bool* isConnected);
   SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
                                     bool isValveOpen,
+                                    float adaptiveAlphaMin,
+                                    float adaptiveAlphaMax,
+                                    float adaptiveDeltaRefPsi,
+                                    float adaptiveJitterDeadbandPsi,
                                     const esp_adc_cal_characteristics_t* adcChars);
 
 private:
   bool adaptivePressureInitialized = false;
   float adaptivePressureFiltered = 0.0f;
+  float adaptivePreviousError = 0.0f;
+  uint8_t adaptiveTrendCounter = 0;
 };
 
 extern SensorManager sensorManager;

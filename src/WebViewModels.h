@@ -22,6 +22,10 @@ struct SettingsSnapshot {
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
     unsigned int medianSampleCount = ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT;
     unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
+    float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+    float adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    float adaptiveDeltaRefPsi = ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI;
+    float adaptiveJitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
     unsigned long tsIntervalSeconds = CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC;
     unsigned long bfIntervalMinutes = CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;

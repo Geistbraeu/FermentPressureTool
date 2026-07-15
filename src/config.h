@@ -72,6 +72,12 @@ namespace ControlConfig {
   constexpr unsigned int MAX_MEDIAN_SAMPLES = 31;
   constexpr unsigned int MIN_MEDIAN_SAMPLES = 3;
 
+  // Adaptive pressure filter defaults
+  constexpr float DEFAULT_ADAPTIVE_ALPHA_MIN = 0.03f;
+  constexpr float DEFAULT_ADAPTIVE_ALPHA_MAX = 0.70f;
+  constexpr float DEFAULT_ADAPTIVE_DELTA_REF_PSI = 1.0f;
+  constexpr float DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI = 0.05f;
+
   // Manual solenoid override timeout
   constexpr unsigned long MANUAL_OVERRIDE_TIMEOUT_MS = 10000;  // 10 seconds
 

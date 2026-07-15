@@ -66,6 +66,10 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
 
 SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
                                                   bool isValveOpen,
+                                                  float adaptiveAlphaMin,
+                                                  float adaptiveAlphaMax,
+                                                  float adaptiveDeltaRefPsi,
+                                                  float adaptiveJitterDeadbandPsi,
                                                   const esp_adc_cal_characteristics_t* adcChars) {
   int samples[ControlConfig::MAX_MEDIAN_SAMPLES];
 
@@ -111,22 +115,76 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
 
   if (isValveOpen) {
     adaptivePressureInitialized = false;
+    adaptivePreviousError = 0.0f;
+    adaptiveTrendCounter = 0;
   } else {
-    // Adaptive EMA: faster response for larger pressure changes.
-    constexpr float kAlphaMin = 0.08f;
-    constexpr float kAlphaMax = 0.50f;
-    constexpr float kDeltaRefPsi = 1.0f;
+    // Adaptive EMA tuned for jitter suppression:
+    // very smooth for tiny changes, but fast at >= 1 psi steps.
+    float alphaMin = adaptiveAlphaMin;
+    float alphaMax = adaptiveAlphaMax;
+    float deltaRefPsi = adaptiveDeltaRefPsi;
+    float jitterDeadbandPsi = adaptiveJitterDeadbandPsi;
+    if (alphaMin <= 0.0f || alphaMin >= 1.0f) {
+      alphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+    }
+    if (alphaMax <= 0.0f || alphaMax > 1.0f) {
+      alphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    }
+    if (alphaMin >= alphaMax) {
+      alphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+      alphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    }
+    if (deltaRefPsi <= 0.01f) {
+      deltaRefPsi = ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI;
+    }
+    if (jitterDeadbandPsi < 0.0f || jitterDeadbandPsi >= deltaRefPsi) {
+      jitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
+    }
 
     if (!adaptivePressureInitialized) {
       adaptivePressureFiltered = pressure;
       adaptivePressureInitialized = true;
+      adaptivePreviousError = 0.0f;
+      adaptiveTrendCounter = 0;
     } else {
-      float delta = fabsf(pressure - adaptivePressureFiltered);
-      float adapt = delta / kDeltaRefPsi;
+      const float error = pressure - adaptivePressureFiltered;
+      float delta = fabsf(error);
+
+      // If error keeps same direction for many samples, gently raise alpha floor
+      // so slow monotonic pressure trends are tracked with less lag.
+      constexpr uint8_t kTrendCounterMax = 40;
+      constexpr float kTrendBoostMax = 0.10f;
+      const bool errorAboveNoise = delta > jitterDeadbandPsi;
+      const bool sameDirection = (error * adaptivePreviousError) > 0.0f;
+      if (errorAboveNoise && sameDirection) {
+        if (adaptiveTrendCounter < kTrendCounterMax) {
+          adaptiveTrendCounter++;
+        }
+      } else if (errorAboveNoise) {
+        adaptiveTrendCounter = 1;
+      } else if (adaptiveTrendCounter > 0) {
+        adaptiveTrendCounter--;
+      }
+      adaptivePreviousError = error;
+
+      float alphaFloor = alphaMin;
+      if (adaptiveTrendCounter > 0) {
+        const float trendRatio = (float)adaptiveTrendCounter / (float)kTrendCounterMax;
+        alphaFloor += kTrendBoostMax * trendRatio;
+      }
+      if (alphaFloor >= alphaMax) {
+        alphaFloor = alphaMax - 0.01f;
+      }
+
+      float adapt = (delta - jitterDeadbandPsi) / (deltaRefPsi - jitterDeadbandPsi);
+      if (adapt < 0.0f) {
+        adapt = 0.0f;
+      }
       if (adapt > 1.0f) {
         adapt = 1.0f;
       }
-      float alpha = kAlphaMin + (kAlphaMax - kAlphaMin) * adapt;
+      adapt = adapt * adapt;
+      float alpha = alphaFloor + (alphaMax - alphaFloor) * adapt;
       adaptivePressureFiltered += alpha * (pressure - adaptivePressureFiltered);
     }
     pressure = adaptivePressureFiltered;

@@ -64,6 +64,26 @@ void Settings::load() {
     updateIntervalMs = prefs.getULong("updateInterval", ControlConfig::DEFAULT_UPDATE_INTERVAL_MS);
     medianSampleCount = prefs.getULong("medianCount", ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT);
     medianSampleDelayMs = prefs.getULong("medianDelay", ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS);
+    adaptiveAlphaMin = prefs.getFloat("pfAlphaMin", ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN);
+    adaptiveAlphaMax = prefs.getFloat("pfAlphaMax", ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX);
+    adaptiveDeltaRefPsi = prefs.getFloat("pfDeltaRef", ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI);
+    adaptiveJitterDeadbandPsi = prefs.getFloat("pfDeadband", ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI);
+    if (adaptiveAlphaMin <= 0.0f || adaptiveAlphaMin >= 1.0f) {
+        adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+    }
+    if (adaptiveAlphaMax <= 0.0f || adaptiveAlphaMax > 1.0f) {
+        adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    }
+    if (adaptiveAlphaMin >= adaptiveAlphaMax) {
+        adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+        adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    }
+    if (adaptiveDeltaRefPsi <= 0.01f || adaptiveDeltaRefPsi > 10.0f) {
+        adaptiveDeltaRefPsi = ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI;
+    }
+    if (adaptiveJitterDeadbandPsi < 0.0f || adaptiveJitterDeadbandPsi >= adaptiveDeltaRefPsi) {
+        adaptiveJitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
+    }
     tsIntervalSeconds = prefs.getULong("tsInterval", CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC);
     bfIntervalMinutes = prefs.getULong("bfInterval", CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN);
     offsetVoltage = prefs.getFloat("offsetVoltage", SensorConfig::PRESSURE_OFFSET_DEFAULT);
@@ -140,6 +160,38 @@ bool Settings::setMedianSampleDelayMs(unsigned long val) {
     if (medianSampleDelayMs == val) return true;
     medianSampleDelayMs = val;
     return saveULong("medianDelay", val);
+}
+
+bool Settings::setAdaptiveAlphaMin(float val) {
+    if (val <= 0.0f || val >= 1.0f) return false;
+    if (val >= adaptiveAlphaMax) return false;
+    if (adaptiveAlphaMin == val) return true;
+    adaptiveAlphaMin = val;
+    return saveFloat("pfAlphaMin", val);
+}
+
+bool Settings::setAdaptiveAlphaMax(float val) {
+    if (val <= 0.0f || val > 1.0f) return false;
+    if (val <= adaptiveAlphaMin) return false;
+    if (adaptiveAlphaMax == val) return true;
+    adaptiveAlphaMax = val;
+    return saveFloat("pfAlphaMax", val);
+}
+
+bool Settings::setAdaptiveDeltaRefPsi(float val) {
+    if (val <= 0.01f || val > 10.0f) return false;
+    if (val <= adaptiveJitterDeadbandPsi) return false;
+    if (adaptiveDeltaRefPsi == val) return true;
+    adaptiveDeltaRefPsi = val;
+    return saveFloat("pfDeltaRef", val);
+}
+
+bool Settings::setAdaptiveJitterDeadbandPsi(float val) {
+    if (val < 0.0f || val >= 2.0f) return false;
+    if (val >= adaptiveDeltaRefPsi) return false;
+    if (adaptiveJitterDeadbandPsi == val) return true;
+    adaptiveJitterDeadbandPsi = val;
+    return saveFloat("pfDeadband", val);
 }
 
 bool Settings::setTsIntervalSeconds(unsigned long val) {

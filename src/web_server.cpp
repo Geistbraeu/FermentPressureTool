@@ -43,6 +43,10 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.updateIntervalMs = settings.updateIntervalMs;
         snapshot.medianSampleCount = settings.medianSampleCount;
         snapshot.medianSampleDelayMs = settings.medianSampleDelayMs;
+        snapshot.adaptiveAlphaMin = settings.adaptiveAlphaMin;
+        snapshot.adaptiveAlphaMax = settings.adaptiveAlphaMax;
+        snapshot.adaptiveDeltaRefPsi = settings.adaptiveDeltaRefPsi;
+        snapshot.adaptiveJitterDeadbandPsi = settings.adaptiveJitterDeadbandPsi;
         snapshot.tsIntervalSeconds = settings.tsIntervalSeconds;
         snapshot.bfIntervalMinutes = settings.bfIntervalMinutes;
         snapshot.offsetVoltage = settings.offsetVoltage;
@@ -235,6 +239,62 @@ void handleApi() {
             } else {
                 if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
                     if (!settings.setMedianSampleDelayMs(val)) saveFailed("medianSampleDelay");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("pfAlphaMin")) {
+            float val = server.arg("pfAlphaMin").toFloat();
+            if (!Validation::isValidAdaptiveAlphaMin(val)) {
+                addError("pfAlphaMin", "invalid_range_0_1");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setAdaptiveAlphaMin(val)) saveFailed("pfAlphaMin");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("pfAlphaMax")) {
+            float val = server.arg("pfAlphaMax").toFloat();
+            if (!Validation::isValidAdaptiveAlphaMax(val)) {
+                addError("pfAlphaMax", "invalid_range_0_1");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setAdaptiveAlphaMax(val)) saveFailed("pfAlphaMax");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("pfDeltaRef")) {
+            float val = server.arg("pfDeltaRef").toFloat();
+            if (!Validation::isValidAdaptiveDeltaRefPsi(val)) {
+                addError("pfDeltaRef", "invalid_range_0_01_10");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setAdaptiveDeltaRefPsi(val)) saveFailed("pfDeltaRef");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("pfDeadband")) {
+            float val = server.arg("pfDeadband").toFloat();
+            if (!Validation::isValidAdaptiveJitterDeadbandPsi(val)) {
+                addError("pfDeadband", "invalid_range_0_2");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setAdaptiveJitterDeadbandPsi(val)) saveFailed("pfDeadband");
                     xSemaphoreGive(runtimeState.settingsMutex);
                 } else {
                     lockFailed("settingsMutex");

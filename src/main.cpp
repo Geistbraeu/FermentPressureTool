@@ -142,11 +142,19 @@ void sensorTask(void *pvParameters) {
     unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
+    float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
+    float adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
+    float adaptiveDeltaRefPsi = ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI;
+    float adaptiveJitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
     if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
       sampleCount = settings.medianSampleCount;
       medianSampleDelayMs = settings.medianSampleDelayMs;
       updateIntervalMs = settings.updateIntervalMs;
       offsetVoltage = settings.offsetVoltage;
+      adaptiveAlphaMin = settings.adaptiveAlphaMin;
+      adaptiveAlphaMax = settings.adaptiveAlphaMax;
+      adaptiveDeltaRefPsi = settings.adaptiveDeltaRefPsi;
+      adaptiveJitterDeadbandPsi = settings.adaptiveJitterDeadbandPsi;
       xSemaphoreGive(runtimeState.settingsMutex);
     }
 
@@ -155,6 +163,10 @@ void sensorTask(void *pvParameters) {
                                    medianSampleDelayMs,
                                    offsetVoltage,
                                    isValveOpen,
+                                                               adaptiveAlphaMin,
+                                                               adaptiveAlphaMax,
+                                                               adaptiveDeltaRefPsi,
+                                                               adaptiveJitterDeadbandPsi,
                                    &runtimeState.adc_chars);
 
     // 4. Непрерывно публикуем фильтрованные значения в RuntimeState

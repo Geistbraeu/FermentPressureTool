@@ -68,6 +68,22 @@ namespace Validation {
     return val >= 1 && val <= 1000;
   }
 
+  inline bool isValidAdaptiveAlphaMin(float val) {
+    return val > 0.0f && val < 1.0f;
+  }
+
+  inline bool isValidAdaptiveAlphaMax(float val) {
+    return val > 0.0f && val <= 1.0f;
+  }
+
+  inline bool isValidAdaptiveDeltaRefPsi(float val) {
+    return val > 0.01f && val <= 10.0f;
+  }
+
+  inline bool isValidAdaptiveJitterDeadbandPsi(float val) {
+    return val >= 0.0f && val < 2.0f;
+  }
+
   /**
    * ThingSpeak interval validation (seconds)
    * Valid range: 15 - 3600 seconds (15 sec - 1 hour)

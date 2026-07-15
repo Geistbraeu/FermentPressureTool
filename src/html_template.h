@@ -324,6 +324,9 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     <button class="tab-btn active" type="button" onclick="switchTab('main', this)" id="tab-main">
       &#9881; Main Settings
     </button>
+    <button class="tab-btn" type="button" onclick="switchTab('filter', this)" id="tab-filter">
+      &#128295; Pressure Filter
+    </button>
     <button class="tab-btn" type="button" onclick="switchTab('cloud', this)" id="tab-cloud">
       &#9729; Cloud Settings
     </button>
@@ -407,30 +410,6 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Median Sample Count</label>
-        <form action="/api" method="POST">
-          <div class="setting-row">
-            <input type="number" name="medianSampleCount" value=")rawhtml";
-    html += String(cfg.medianSampleCount);
-    html += R"rawhtml(">
-            <button class="btn-set" type="submit">Set</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="setting-group">
-        <label class="setting-label">Median Sample Delay (ms)</label>
-        <form action="/api" method="POST">
-          <div class="setting-row">
-            <input type="number" name="medianSampleDelay" value=")rawhtml";
-    html += String(cfg.medianSampleDelayMs);
-    html += R"rawhtml(">
-            <button class="btn-set" type="submit">Set</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="setting-group">
         <label class="setting-label">Voltage Offset (V)</label>
         <form action="/api" method="POST">
           <div class="setting-row">
@@ -472,6 +451,88 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
       </div>
 
     </div><!-- /panel-main -->
+
+    <!-- TAB: PRESSURE FILTER -->
+    <div class="tab-panel" id="panel-filter">
+
+      <div class="section-title">Median Filter</div>
+
+      <div class="setting-group">
+        <label class="setting-label">Median Sample Count (odd, 3-31)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" name="medianSampleCount" value=")rawhtml";
+    html += String(cfg.medianSampleCount);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Median Sample Delay (ms)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" name="medianSampleDelay" value=")rawhtml";
+    html += String(cfg.medianSampleDelayMs);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <hr class="divider">
+      <div class="section-title">Adaptive Filter (ignored when valve is open)</div>
+
+      <div class="setting-group">
+        <label class="setting-label">Alpha Min (0..1)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" step="0.01" min="0.01" max="0.99" name="pfAlphaMin" value=")rawhtml";
+    html += String(cfg.adaptiveAlphaMin, 2);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Alpha Max (0..1)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" step="0.01" min="0.01" max="1.00" name="pfAlphaMax" value=")rawhtml";
+    html += String(cfg.adaptiveAlphaMax, 2);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Delta Ref (PSI, max speed point)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" step="0.01" min="0.01" max="10.00" name="pfDeltaRef" value=")rawhtml";
+    html += String(cfg.adaptiveDeltaRefPsi, 2);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Jitter Deadband (PSI)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" step="0.01" min="0.00" max="2.00" name="pfDeadband" value=")rawhtml";
+    html += String(cfg.adaptiveJitterDeadbandPsi, 2);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+    </div><!-- /panel-filter -->
 
     <!-- TAB: CLOUD SETTINGS -->
     <div class="tab-panel" id="panel-cloud">
