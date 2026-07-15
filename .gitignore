@@ -4,5 +4,5 @@
 .vscode/launch.json
 .vscode/ipch
 src/device/DisplayManager.cpp
-compile_output.txt
-compile_error.txt
+compile_*.txt
+
