@@ -243,7 +243,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
   <!-- HEADER -->
   <div class="header">
     <div class="header-left">
-      <h1>&#127866; Fermenter Control</h1>
+      <h1><span style="-webkit-text-fill-color:initial;">&#127866;</span> Fermenter Control</h1>
       <p><span id="device-name">)rawhtml";
     html += cfg.devName;
     html += R"rawhtml(</span> &nbsp;&#183;&nbsp; <span id="device-ip">)rawhtml";
