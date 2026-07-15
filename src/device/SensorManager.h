@@ -15,7 +15,12 @@ public:
   void initTempSensor(bool useTempSensor);
   float readTemperature(bool isEnabled, float tempOffset, bool* isConnected);
   SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
+                                    bool isValveOpen,
                                     const esp_adc_cal_characteristics_t* adcChars);
+
+private:
+  bool adaptivePressureInitialized = false;
+  float adaptivePressureFiltered = 0.0f;
 };
 
 extern SensorManager sensorManager;

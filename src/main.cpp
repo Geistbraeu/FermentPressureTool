@@ -150,7 +150,12 @@ void sensorTask(void *pvParameters) {
       xSemaphoreGive(runtimeState.settingsMutex);
     }
 
-    SensorReading reading = sensorManager.readFilteredPressure(sampleCount, medianSampleDelayMs, offsetVoltage, &runtimeState.adc_chars);
+    bool isValveOpen = digitalRead(HardwareConfig::SOLENOID_PIN) == HIGH;
+    SensorReading reading = sensorManager.readFilteredPressure(sampleCount,
+                                   medianSampleDelayMs,
+                                   offsetVoltage,
+                                   isValveOpen,
+                                   &runtimeState.adc_chars);
 
     // 4. Непрерывно публикуем фильтрованные значения в RuntimeState
     if (xSemaphoreTake(runtimeState.dataMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {

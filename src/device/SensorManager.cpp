@@ -6,6 +6,7 @@
 #include <esp_adc_cal.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <math.h>
 
 static const int sensorPin = HardwareConfig::ADC_PRESSURE_PIN;
 static OneWire oneWireBus(HardwareConfig::TEMP_SENSOR_PIN);
@@ -64,6 +65,7 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
 }
 
 SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
+                                                  bool isValveOpen,
                                                   const esp_adc_cal_characteristics_t* adcChars) {
   int samples[ControlConfig::MAX_MEDIAN_SAMPLES];
 
@@ -105,6 +107,29 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
   float pressure = 0.0f;
   if (sensorVoltage > offsetVoltage) {
     pressure = (sensorVoltage - offsetVoltage) * SensorConfig::PRESSURE_PSI_RANGE / SensorConfig::PRESSURE_VOLTAGE_RANGE;
+  }
+
+  if (isValveOpen) {
+    adaptivePressureInitialized = false;
+  } else {
+    // Adaptive EMA: faster response for larger pressure changes.
+    constexpr float kAlphaMin = 0.08f;
+    constexpr float kAlphaMax = 0.50f;
+    constexpr float kDeltaRefPsi = 1.0f;
+
+    if (!adaptivePressureInitialized) {
+      adaptivePressureFiltered = pressure;
+      adaptivePressureInitialized = true;
+    } else {
+      float delta = fabsf(pressure - adaptivePressureFiltered);
+      float adapt = delta / kDeltaRefPsi;
+      if (adapt > 1.0f) {
+        adapt = 1.0f;
+      }
+      float alpha = kAlphaMin + (kAlphaMax - kAlphaMin) * adapt;
+      adaptivePressureFiltered += alpha * (pressure - adaptivePressureFiltered);
+    }
+    pressure = adaptivePressureFiltered;
   }
 
   SensorReading reading;
