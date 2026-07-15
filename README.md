@@ -10,6 +10,7 @@ A device for monitoring and controlling the fermentation process with real-time 
 
 <p align="center">
    <img src="device.jpg" alt="FermentPressureTool device" width="560">
+   <img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
 </p>
 
 ### Key Features

@@ -10,6 +10,7 @@
 
 <p align="center">
    <img src="device.jpg" alt="FermentPressureTool device" width="560">
+   <img src="Portal.jpg" alt="FermentPressureTool web portal" width="560">
 </p>
 
 ### Основные возможности:
