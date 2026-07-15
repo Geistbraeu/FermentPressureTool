@@ -59,12 +59,12 @@ void BrewfatherProvider::send(const CloudPayload& payload) {
       }
       jsonBody += "\"temp_unit\":\"C\",";
     }
+    jsonBody += "\"count\":" + String(payload.valveActivationsPerHour) + ",";
     jsonBody += "\"battery\":" + String(payload.voltage, 2) + ",";
     jsonBody += "\"comment\":\"Voltage: " + String(payload.voltage, 2) + "V";
     if (useTempSensor) {
       jsonBody += ", Temp: " + String(payload.temperatureC, 2) + "C";
     }
-    jsonBody += ", ValveAct/h: " + String(payload.valveActivationsPerHour);
     jsonBody += "\"}";
 
     DBG("[Brewfather] JSON:\n" + jsonBody);
