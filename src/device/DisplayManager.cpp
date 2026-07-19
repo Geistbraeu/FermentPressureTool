@@ -1,5 +1,6 @@
 #include "device/DisplayManager.h"
 #include "config.h"
+#include "Settings.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 
@@ -59,7 +60,8 @@ void DisplayManager::update(const String& ipStatus,
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(DisplayConfig::LAYOUT_X_LEFT, DisplayConfig::LAYOUT_Y_HOSTNAME);
-  display.print(NetworkConfig::HOSTNAME);
+  const String displayName = wifiSettings.devName.isEmpty() ? String(NetworkConfig::HOSTNAME) : wifiSettings.devName;
+  display.print(displayName);
 
   float pDisplay = (pressureUnit == 0) ? (pressureBar / SensorConfig::PSI_TO_BAR) : pressureBar;
   String unitStr = (pressureUnit == 0) ? "PSI" : "Bar";

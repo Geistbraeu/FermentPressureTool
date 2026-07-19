@@ -38,10 +38,11 @@ void setup() {
   solenoidController.init();
 
   // Инициализация mDNS
-  if (!MDNS.begin(NetworkConfig::HOSTNAME)) {
+  const String mdnsHost = wifiSettings.devName.isEmpty() ? String(NetworkConfig::HOSTNAME) : wifiSettings.devName;
+  if (!MDNS.begin(mdnsHost.c_str())) {
     DBG("mDNS ERROR");
   } else {
-    DBG("mDNS responder started: " + String(NetworkConfig::HOSTNAME) + ".local");
+    DBG("mDNS responder started: " + mdnsHost + ".local");
     MDNS.addService("http", "tcp", NetworkConfig::WEBSERVER_PORT);
   }
  

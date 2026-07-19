@@ -246,6 +246,12 @@ void handleApi() {
             } else {
                 wifiSettings.save(wifiSettings.ssid, wifiSettings.pass, newDevName);
                 WiFi.setHostname(newDevName.c_str());
+                MDNS.end();
+                if (!MDNS.begin(newDevName.c_str())) {
+                    addError("devName", "mdns_restart_failed");
+                } else {
+                    MDNS.addService("http", "tcp", NetworkConfig::WEBSERVER_PORT);
+                }
             }
         }
 
