@@ -29,8 +29,8 @@ namespace DisplayConfig {
   constexpr int SCREEN_HEIGHT = 64;
   constexpr int OLED_RESET_PIN = -1;
   constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;
-  constexpr int OLED_I2C_SDA_PIN = 4;
-  constexpr int OLED_I2C_SCL_PIN = 5;
+  constexpr int OLED_I2C_SDA_PIN = 5;
+  constexpr int OLED_I2C_SCL_PIN = 4;
 
   // Display layout coordinates (Y positions)
   constexpr int LAYOUT_Y_HOSTNAME = 0;
