@@ -9,6 +9,7 @@ bool isOledConnected = false;
 DisplayManager displayManager;
 
 bool DisplayManager::init() {
+  Wire.begin(DisplayConfig::OLED_I2C_SDA_PIN, DisplayConfig::OLED_I2C_SCL_PIN);
   if (display.begin(SSD1306_SWITCHCAPVCC, DisplayConfig::OLED_I2C_ADDRESS)) {
     isOledConnected = true;
     display.cp437(true);

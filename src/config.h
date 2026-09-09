@@ -14,13 +14,13 @@
 // ==================== HARDWARE PINS ====================
 namespace HardwareConfig {
   // Solenoid relay control
-  constexpr int SOLENOID_PIN = 27;
+  constexpr int SOLENOID_PIN = 6;
 
   // Pressure sensor (ADC)
-  constexpr int ADC_PRESSURE_PIN = 34;  // ADC1_CH6
+  constexpr int ADC_PRESSURE_PIN = 1;  // ESP32-S3 ADC1_CH0
 
   // Temperature sensor (DS18B20 OneWire)
-  constexpr int TEMP_SENSOR_PIN = 4;
+  constexpr int TEMP_SENSOR_PIN = 2;
 }
 
 // ==================== DISPLAY (OLED SSD1306) ====================
@@ -29,6 +29,8 @@ namespace DisplayConfig {
   constexpr int SCREEN_HEIGHT = 64;
   constexpr int OLED_RESET_PIN = -1;
   constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;
+  constexpr int OLED_I2C_SDA_PIN = 4;
+  constexpr int OLED_I2C_SCL_PIN = 5;
 
   // Display layout coordinates (Y positions)
   constexpr int LAYOUT_Y_HOSTNAME = 0;
