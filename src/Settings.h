@@ -2,6 +2,7 @@
 #define SETTINGS_H
 
 #include <Arduino.h>
+#include "config.h"
 
 class Settings {
 public:
@@ -21,6 +22,7 @@ public:
     float adaptiveJitterDeadbandPsi;
     unsigned long tsIntervalSeconds;
     unsigned long bfIntervalMinutes;
+    uint8_t pressureAdc;
     float offsetVoltage;
     float tempOffset;
     bool useTempSensor;
@@ -58,6 +60,7 @@ public:
     bool setAdaptiveJitterDeadbandPsi(float val);
     bool setTsIntervalSeconds(unsigned long val);
     bool setBfIntervalMinutes(unsigned long val);
+    bool setPressureAdc(int val);
     bool setOffsetVoltage(float val);
     bool setTempOffset(float val);
     bool setUseTempSensor(bool val);

@@ -90,6 +90,10 @@ void Settings::load() {
     }
     tsIntervalSeconds = prefs.getULong("tsInterval", CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC);
     bfIntervalMinutes = prefs.getULong("bfInterval", CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN);
+    int pressureAdcValue = prefs.getInt("pressureAdc", SensorConfig::PRESSURE_ADC_ESP32);
+    pressureAdc = (pressureAdcValue == SensorConfig::PRESSURE_ADC_ADS1115)
+                      ? SensorConfig::PRESSURE_ADC_ADS1115
+                      : SensorConfig::PRESSURE_ADC_ESP32;
     offsetVoltage = prefs.getFloat("offsetVoltage", SensorConfig::PRESSURE_OFFSET_DEFAULT);
     tempOffset = prefs.getFloat("tempOffset", 0.5);
     useTempSensor = prefs.getBool("useTemp", true);
@@ -217,6 +221,17 @@ bool Settings::setBfIntervalMinutes(unsigned long val) {
     if (bfIntervalMinutes == val) return true;
     bfIntervalMinutes = val;
     return saveULong("bfInterval", val);
+}
+
+bool Settings::setPressureAdc(int val) {
+    if (val != SensorConfig::PRESSURE_ADC_ESP32 &&
+        val != SensorConfig::PRESSURE_ADC_ADS1115) {
+        return false;
+    }
+    const uint8_t newAdc = static_cast<uint8_t>(val);
+    if (pressureAdc == newAdc) return true;
+    pressureAdc = newAdc;
+    return saveInt("pressureAdc", val);
 }
 
 bool Settings::setOffsetVoltage(float val) {

@@ -33,6 +33,7 @@ A device for monitoring and controlling the fermentation process with real-time 
 
 ### Sensors and Modules
 - **Pressure sensor** — analog, connected to `GPIO34` (ADC1_CH6)
+- **External ADC (optional)** — ADS1115 on the same I2C bus as the OLED (address `0x48`, pressure input `A0`)
 - **Temperature sensor** — DS18B20 (OneWire)
   - DATA: `GPIO4`
   - 4.7 kΩ pull-up resistor required between DATA and VCC
@@ -42,6 +43,15 @@ A device for monitoring and controlling the fermentation process with real-time 
 ### Connections
 - Serial (UART) at 115200 baud for debugging
 - CH340 USB-UART converter for programming
+
+### Pressure ADC selection
+
+The web settings provide a choice between the built-in ESP32 ADC and an external ADS1115.
+The ESP32 mode keeps the existing voltage divider on `GPIO34`. In ADS1115 mode, connect the
+pressure sensor directly to `A0`; the divider is not used because this input supports the
+sensor's 0.5-4.5 V signal range. Connect `VDD`, `GND`, `SDA`, and `SCL` to the board and tie
+`ADDR` to `GND` for address `0x48`. The ADS1115 and ESP32 must share ground. Do not exceed the
+ADS1115 supply voltage or its absolute input limits.
 
 ## 📁 Project Structure
 

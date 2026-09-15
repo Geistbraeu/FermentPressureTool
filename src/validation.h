@@ -124,6 +124,10 @@ namespace Validation {
     return val >= 0.0f && val <= 4.5f;
   }
 
+  inline bool isValidPressureAdc(int val) {
+    return val == 0 || val == 1;
+  }
+
   /**
    * Temperature offset validation (Celsius)
    * Valid range: -50 to +50°C

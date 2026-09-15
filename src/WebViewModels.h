@@ -30,6 +30,7 @@ struct SettingsSnapshot {
     float adaptiveJitterDeadbandPsi = ControlConfig::DEFAULT_ADAPTIVE_JITTER_DEADBAND_PSI;
     unsigned long tsIntervalSeconds = CloudConfig::THINGSPEAK_DEFAULT_INTERVAL_SEC;
     unsigned long bfIntervalMinutes = CloudConfig::BREWFATHER_DEFAULT_INTERVAL_MIN;
+    uint8_t pressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
     float tempOffset = 0.0f;
     bool useTempSensor = true;

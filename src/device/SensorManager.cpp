@@ -1,14 +1,18 @@
 #include "device/SensorManager.h"
 #include "config.h"
 #include "debug.h"
+#include <Adafruit_ADS1X15.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
+#include <Wire.h>
 #include <esp_adc_cal.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <math.h>
 
 static const int sensorPin = HardwareConfig::ADC_PRESSURE_PIN;
+static Adafruit_ADS1115 ads1115;
+static bool ads1115Available = false;
 static OneWire oneWireBus(HardwareConfig::TEMP_SENSOR_PIN);
 static DallasTemperature tempSensor(&oneWireBus);
 static bool tempSensorInitialized = false;
@@ -18,6 +22,35 @@ SensorManager sensorManager;
 void SensorManager::initAdc(esp_adc_cal_characteristics_t* adcChars) {
   analogSetAttenuation(ADC_11db);
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, SensorConfig::ADC_VREF, adcChars);
+
+  ads1115Available = ads1115.begin(SensorConfig::ADS1115_I2C_ADDRESS, &Wire);
+  if (ads1115Available) {
+    ads1115.setGain(GAIN_TWOTHIRDS);
+    DBG("ADS1115 initialized");
+  } else {
+    DBG("ADS1115 not found");
+  }
+}
+
+float SensorManager::readEsp32AdcVoltage(const esp_adc_cal_characteristics_t* adcChars) {
+  const int rawValue = analogRead(sensorPin);
+  const uint32_t voltageMv = esp_adc_cal_raw_to_voltage(rawValue, adcChars);
+  return voltageMv / 1000.0f;
+}
+
+float SensorManager::readAds1115Voltage() {
+  if (!ads1115Available) {
+    return -1.0f;
+  }
+  const int16_t rawValue = ads1115.readADC_SingleEnded(SensorConfig::ADS1115_PRESSURE_CHANNEL);
+  return ads1115.computeVolts(rawValue);
+}
+
+void SensorManager::resetAdaptivePressure() {
+  adaptivePressureInitialized = false;
+  adaptivePressureFiltered = 0.0f;
+  adaptivePreviousError = 0.0f;
+  adaptiveTrendCounter = 0;
 }
 
 void SensorManager::initTempSensor(bool useTempSensor) {
@@ -64,14 +97,26 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
   return t - tempOffset;
 }
 
-SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
+SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
+                                                  uint8_t adcSource, float offsetVoltage,
                                                   bool isValveOpen,
                                                   float adaptiveAlphaMin,
                                                   float adaptiveAlphaMax,
                                                   float adaptiveDeltaRefPsi,
                                                   float adaptiveJitterDeadbandPsi,
                                                   const esp_adc_cal_characteristics_t* adcChars) {
-  int samples[ControlConfig::MAX_MEDIAN_SAMPLES];
+  float samples[ControlConfig::MAX_MEDIAN_SAMPLES];
+
+  if (!pressureAdcInitialized || activePressureAdc != adcSource) {
+    resetAdaptivePressure();
+    activePressureAdc = adcSource;
+    pressureAdcInitialized = true;
+  }
+
+  if (adcSource == SensorConfig::PRESSURE_ADC_ADS1115 && !ads1115Available) {
+    SensorReading unavailableReading;
+    return unavailableReading;
+  }
 
   if (sampleCount < ControlConfig::MIN_MEDIAN_SAMPLES) {
     sampleCount = ControlConfig::MIN_MEDIAN_SAMPLES;
@@ -87,26 +132,22 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
   }
 
   for (unsigned int i = 0; i < sampleCount; i++) {
-    samples[i] = analogRead(sensorPin);
+    samples[i] = adcSource == SensorConfig::PRESSURE_ADC_ESP32
+                     ? readEsp32AdcVoltage(adcChars) * SensorConfig::ADC_VOLTAGE_DIVIDER
+                     : readAds1115Voltage();
     vTaskDelay(pdMS_TO_TICKS(sampleDelayMs));
   }
 
   for (unsigned int i = 0; i < sampleCount - 1; i++) {
     for (unsigned int j = 0; j < sampleCount - i - 1; j++) {
       if (samples[j] > samples[j + 1]) {
-        int temp = samples[j];
+        float temp = samples[j];
         samples[j] = samples[j + 1];
         samples[j + 1] = temp;
       }
     }
   }
-
-
-
-  int medianRaw = samples[sampleCount / 2];
-  uint32_t voltageMv = esp_adc_cal_raw_to_voltage(medianRaw, adcChars);
-  float measuredVoltage = voltageMv / 1000.0f;
-  float sensorVoltage = measuredVoltage * SensorConfig::ADC_VOLTAGE_DIVIDER;
+  const float sensorVoltage = samples[sampleCount / 2];
 
   float pressure = 0.0f;
   if (sensorVoltage > offsetVoltage) {

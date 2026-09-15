@@ -442,6 +442,23 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
       </div>
 
       <div class="setting-group">
+        <label class="setting-label">Pressure ADC</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <select name="pressureAdc">
+              <option value="0")rawhtml";
+    html += (cfg.pressureAdc == SensorConfig::PRESSURE_ADC_ESP32 ? " selected" : "");
+    html += R"rawhtml(>ESP32</option>
+              <option value="1")rawhtml";
+    html += (cfg.pressureAdc == SensorConfig::PRESSURE_ADC_ADS1115 ? " selected" : "");
+    html += R"rawhtml(>ADS1115</option>
+            </select>
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
         <label class="setting-label">Voltage Offset (V)</label>
         <form action="/api" method="POST">
           <div class="setting-row">

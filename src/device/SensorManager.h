@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <esp_adc_cal.h>
+#include "config.h"
 
 struct SensorReading {
   float voltage = 0.0f;
@@ -14,7 +15,8 @@ public:
   void initAdc(esp_adc_cal_characteristics_t* adcChars);
   void initTempSensor(bool useTempSensor);
   float readTemperature(bool isEnabled, float tempOffset, bool* isConnected);
-  SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs, float offsetVoltage,
+  SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
+                                    uint8_t adcSource, float offsetVoltage,
                                     bool isValveOpen,
                                     float adaptiveAlphaMin,
                                     float adaptiveAlphaMax,
@@ -23,6 +25,12 @@ public:
                                     const esp_adc_cal_characteristics_t* adcChars);
 
 private:
+  float readEsp32AdcVoltage(const esp_adc_cal_characteristics_t* adcChars);
+  float readAds1115Voltage();
+  void resetAdaptivePressure();
+
+  bool pressureAdcInitialized = false;
+  uint8_t activePressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
   bool adaptivePressureInitialized = false;
   float adaptivePressureFiltered = 0.0f;
   float adaptivePreviousError = 0.0f;

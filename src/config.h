@@ -46,6 +46,12 @@ namespace DisplayConfig {
 
 // ==================== SENSOR CALIBRATION ====================
 namespace SensorConfig {
+  constexpr uint8_t PRESSURE_ADC_ESP32 = 0;
+  constexpr uint8_t PRESSURE_ADC_ADS1115 = 1;
+
+  constexpr uint8_t ADS1115_I2C_ADDRESS = 0x48;
+  constexpr uint8_t ADS1115_PRESSURE_CHANNEL = 0;
+
   // DS18B20 disconnect sentinel handling
   constexpr float TEMP_DISCONNECTED_C = -127.0;
   constexpr float PRESSURE_DISCONNECTED_THRESHOLD_V = 0.3f;

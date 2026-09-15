@@ -143,6 +143,7 @@ void sensorTask(void *pvParameters) {
     unsigned int sampleCount = ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT;
     unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
+    uint8_t pressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
     float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
     float adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
@@ -152,6 +153,7 @@ void sensorTask(void *pvParameters) {
       sampleCount = settings.medianSampleCount;
       medianSampleDelayMs = settings.medianSampleDelayMs;
       updateIntervalMs = settings.updateIntervalMs;
+      pressureAdc = settings.pressureAdc;
       offsetVoltage = settings.offsetVoltage;
       adaptiveAlphaMin = settings.adaptiveAlphaMin;
       adaptiveAlphaMax = settings.adaptiveAlphaMax;
@@ -163,6 +165,7 @@ void sensorTask(void *pvParameters) {
     bool isValveOpen = digitalRead(HardwareConfig::SOLENOID_PIN) == HIGH;
     SensorReading reading = sensorManager.readFilteredPressure(sampleCount,
                                    medianSampleDelayMs,
+                                   pressureAdc,
                                    offsetVoltage,
                                    isValveOpen,
                                                                adaptiveAlphaMin,

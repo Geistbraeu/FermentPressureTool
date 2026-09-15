@@ -122,6 +122,7 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.adaptiveJitterDeadbandPsi = settings.adaptiveJitterDeadbandPsi;
         snapshot.tsIntervalSeconds = settings.tsIntervalSeconds;
         snapshot.bfIntervalMinutes = settings.bfIntervalMinutes;
+        snapshot.pressureAdc = settings.pressureAdc;
         snapshot.offsetVoltage = settings.offsetVoltage;
         snapshot.tempOffset = settings.tempOffset;
         snapshot.useTempSensor = settings.useTempSensor;
@@ -175,6 +176,7 @@ void handleApi() {
                        ",\"maxPressure\":" + String(cfg.maxPressureThreshold, 2) + 
                        ",\"pressureUnit\":" + String(cfg.pressureUnit) +
                        ",\"oledSwapSec\":" + String(cfg.oledMetricSwitchSeconds) +
+                       ",\"pressureAdc\":" + String(static_cast<int>(cfg.pressureAdc)) +
                        ",\"offsetVoltage\":" + String(cfg.offsetVoltage, 3) + 
                        ",\"useTempSensor\":" + (cfg.useTempSensor ? "true" : "false") +
                        ",\"devName\":\"" + cfg.devName + "\"" +
@@ -442,6 +444,20 @@ void handleApi() {
             } else {
                 if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
                     if (!settings.setOffsetVoltage(val)) saveFailed("offset");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("pressureAdc")) {
+            int val = server.arg("pressureAdc").toInt();
+            if (!Validation::isValidPressureAdc(val)) {
+                addError("pressureAdc", "must_be_0_or_1");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setPressureAdc(val)) saveFailed("pressureAdc");
                     xSemaphoreGive(runtimeState.settingsMutex);
                 } else {
                     lockFailed("settingsMutex");
