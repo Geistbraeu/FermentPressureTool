@@ -116,6 +116,7 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.oledMetricSwitchSeconds = settings.oledMetricSwitchSeconds;
         snapshot.medianSampleCount = settings.medianSampleCount;
         snapshot.medianSampleDelayMs = settings.medianSampleDelayMs;
+        snapshot.adaptiveFilterEnabled = settings.adaptiveFilterEnabled;
         snapshot.adaptiveAlphaMin = settings.adaptiveAlphaMin;
         snapshot.adaptiveAlphaMax = settings.adaptiveAlphaMax;
         snapshot.adaptiveDeltaRefPsi = settings.adaptiveDeltaRefPsi;
@@ -176,6 +177,7 @@ void handleApi() {
                        ",\"maxPressure\":" + String(cfg.maxPressureThreshold, 2) + 
                        ",\"pressureUnit\":" + String(cfg.pressureUnit) +
                        ",\"oledSwapSec\":" + String(cfg.oledMetricSwitchSeconds) +
+                       ",\"adaptiveFilter\":" + (cfg.adaptiveFilterEnabled ? "true" : "false") +
                        ",\"pressureAdc\":" + String(static_cast<int>(cfg.pressureAdc)) +
                        ",\"offsetVoltage\":" + String(cfg.offsetVoltage, 3) + 
                        ",\"useTempSensor\":" + (cfg.useTempSensor ? "true" : "false") +
@@ -350,6 +352,16 @@ void handleApi() {
                 } else {
                     lockFailed("settingsMutex");
                 }
+            }
+        }
+
+        if (server.hasArg("adaptiveFilter")) {
+            bool val = server.arg("adaptiveFilter").toInt() == 1;
+            if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                if (!settings.setAdaptiveFilterEnabled(val)) saveFailed("adaptiveFilter");
+                xSemaphoreGive(runtimeState.settingsMutex);
+            } else {
+                lockFailed("settingsMutex");
             }
         }
 

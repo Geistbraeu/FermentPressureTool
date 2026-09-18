@@ -65,6 +65,7 @@ void Settings::load() {
     oledMetricSwitchSeconds = prefs.getULong("oledSwapSec", ControlConfig::DEFAULT_OLED_METRIC_SWITCH_SECONDS);
     medianSampleCount = prefs.getULong("medianCount", ControlConfig::DEFAULT_MEDIAN_SAMPLE_COUNT);
     medianSampleDelayMs = prefs.getULong("medianDelay", ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS);
+    adaptiveFilterEnabled = prefs.getBool("pfEnabled", true);
     adaptiveAlphaMin = prefs.getFloat("pfAlphaMin", ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN);
     adaptiveAlphaMax = prefs.getFloat("pfAlphaMax", ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX);
     adaptiveDeltaRefPsi = prefs.getFloat("pfDeltaRef", ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI);
@@ -175,6 +176,12 @@ bool Settings::setMedianSampleDelayMs(unsigned long val) {
     if (medianSampleDelayMs == val) return true;
     medianSampleDelayMs = val;
     return saveULong("medianDelay", val);
+}
+
+bool Settings::setAdaptiveFilterEnabled(bool val) {
+    if (adaptiveFilterEnabled == val) return true;
+    adaptiveFilterEnabled = val;
+    return saveBool("pfEnabled", val);
 }
 
 bool Settings::setAdaptiveAlphaMin(float val) {

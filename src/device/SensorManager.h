@@ -18,6 +18,7 @@ public:
   SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
                                     uint8_t adcSource, float offsetVoltage,
                                     bool isValveOpen,
+                                    bool adaptiveFilterEnabled,
                                     float adaptiveAlphaMin,
                                     float adaptiveAlphaMax,
                                     float adaptiveDeltaRefPsi,

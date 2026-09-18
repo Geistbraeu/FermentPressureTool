@@ -522,7 +522,7 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
         <label class="setting-label">Median Sample Delay (ms)</label>
         <form action="/api" method="POST">
           <div class="setting-row">
-            <input type="number" name="medianSampleDelay" value=")rawhtml";
+            <input type="number" min="1" name="medianSampleDelay" value=")rawhtml";
     html += String(cfg.medianSampleDelayMs);
     html += R"rawhtml(">
             <button class="btn-set" type="submit">Set</button>
@@ -532,6 +532,23 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
 
       <hr class="divider">
       <div class="section-title">Adaptive Filter (ignored when valve is open)</div>
+
+      <div class="setting-group">
+        <label class="setting-label">Adaptive Filter</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <select name="adaptiveFilter">
+              <option value="0")rawhtml";
+    html += (!cfg.adaptiveFilterEnabled ? " selected" : "");
+    html += R"rawhtml(>Disabled</option>
+              <option value="1")rawhtml";
+    html += (cfg.adaptiveFilterEnabled ? " selected" : "");
+    html += R"rawhtml(>Enabled</option>
+            </select>
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
 
       <div class="setting-group">
         <label class="setting-label">Alpha Min (0..1)</label>

@@ -13,6 +13,8 @@
 static const int sensorPin = HardwareConfig::ADC_PRESSURE_PIN;
 static Adafruit_ADS1115 ads1115;
 static bool ads1115Available = false;
+static unsigned long lastAds1115DebugAt = 0;
+static bool ads1115UnavailableReported = false;
 static OneWire oneWireBus(HardwareConfig::TEMP_SENSOR_PIN);
 static DallasTemperature tempSensor(&oneWireBus);
 static bool tempSensorInitialized = false;
@@ -23,12 +25,31 @@ void SensorManager::initAdc(esp_adc_cal_characteristics_t* adcChars) {
   analogSetAttenuation(ADC_11db);
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, SensorConfig::ADC_VREF, adcChars);
 
+  DBG("Scanning I2C bus for ADS1115...");
+  bool ads1115AddressFound = false;
+  for (uint8_t address = 0x03; address <= 0x77; address++) {
+    Wire.beginTransmission(address);
+    const uint8_t error = Wire.endTransmission();
+    if (error == 0) {
+      DBGF("I2C device found at 0x%02X\n", address);
+      if (address == SensorConfig::ADS1115_I2C_ADDRESS) {
+        ads1115AddressFound = true;
+      }
+    }
+  }
+
+  DBGF("ADS1115 probe address=0x%02X present=%s\n",
+       SensorConfig::ADS1115_I2C_ADDRESS,
+       ads1115AddressFound ? "yes" : "no");
   ads1115Available = ads1115.begin(SensorConfig::ADS1115_I2C_ADDRESS, &Wire);
   if (ads1115Available) {
     ads1115.setGain(GAIN_TWOTHIRDS);
-    DBG("ADS1115 initialized");
+    ads1115.setDataRate(RATE_ADS1115_16SPS);
+    DBGF("ADS1115 initialized: address=0x%02X channel=A%d gain=2/3 range=6.144V rate=16SPS\n",
+         SensorConfig::ADS1115_I2C_ADDRESS,
+         SensorConfig::ADS1115_PRESSURE_CHANNEL);
   } else {
-    DBG("ADS1115 not found");
+    DBGF("ADS1115 initialization FAILED: address=0x%02X\n", SensorConfig::ADS1115_I2C_ADDRESS);
   }
 }
 
@@ -40,10 +61,21 @@ float SensorManager::readEsp32AdcVoltage(const esp_adc_cal_characteristics_t* ad
 
 float SensorManager::readAds1115Voltage() {
   if (!ads1115Available) {
+    if (!ads1115UnavailableReported) {
+      DBG("ADS1115 read skipped: device is unavailable");
+      ads1115UnavailableReported = true;
+    }
     return -1.0f;
   }
   const int16_t rawValue = ads1115.readADC_SingleEnded(SensorConfig::ADS1115_PRESSURE_CHANNEL);
-  return ads1115.computeVolts(rawValue);
+  const float voltage = ads1115.computeVolts(rawValue);
+  const unsigned long now = millis();
+  if (lastAds1115DebugAt == 0 || (unsigned long)(now - lastAds1115DebugAt) >= 1000) {
+    DBGF("ADS1115 read: channel=A%d raw=%d voltage=%.4fV\n",
+         SensorConfig::ADS1115_PRESSURE_CHANNEL, rawValue, voltage);
+    lastAds1115DebugAt = now;
+  }
+  return voltage;
 }
 
 void SensorManager::resetAdaptivePressure() {
@@ -100,6 +132,7 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
 SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
                                                   uint8_t adcSource, float offsetVoltage,
                                                   bool isValveOpen,
+                                                  bool adaptiveFilterEnabled,
                                                   float adaptiveAlphaMin,
                                                   float adaptiveAlphaMax,
                                                   float adaptiveDeltaRefPsi,
@@ -111,9 +144,15 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
     resetAdaptivePressure();
     activePressureAdc = adcSource;
     pressureAdcInitialized = true;
+    DBGF("Pressure ADC source: %s\n",
+         adcSource == SensorConfig::PRESSURE_ADC_ADS1115 ? "ADS1115" : "ESP32");
   }
 
   if (adcSource == SensorConfig::PRESSURE_ADC_ADS1115 && !ads1115Available) {
+    if (!ads1115UnavailableReported) {
+      DBG("Pressure read unavailable: ADS1115 selected but not initialized");
+      ads1115UnavailableReported = true;
+    }
     SensorReading unavailableReading;
     return unavailableReading;
   }
@@ -154,7 +193,9 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
     pressure = (sensorVoltage - offsetVoltage) * SensorConfig::PRESSURE_PSI_RANGE / SensorConfig::PRESSURE_VOLTAGE_RANGE;
   }
 
-  if (isValveOpen) {
+  if (!adaptiveFilterEnabled) {
+    resetAdaptivePressure();
+  } else if (isValveOpen) {
     adaptivePressureInitialized = false;
     adaptivePreviousError = 0.0f;
     adaptiveTrendCounter = 0;

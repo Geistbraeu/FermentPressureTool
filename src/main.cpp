@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <Wire.h>
 #include <esp_adc_cal.h>
 #include <ESPmDNS.h>
 #include "config.h"
@@ -24,6 +25,9 @@ void processSampledData();
 void setup() {
   Serial.begin(NetworkConfig::SERIAL_BAUD_RATE);   
   while (!Serial); 
+
+  Wire.begin();
+  DBG("I2C bus initialized");
 
   // Настройка АЦП и чтение калибровки из eFuse
   sensorManager.initAdc(&runtimeState.adc_chars);
@@ -144,6 +148,7 @@ void sensorTask(void *pvParameters) {
     unsigned long medianSampleDelayMs = ControlConfig::DEFAULT_MEDIAN_SAMPLE_DELAY_MS;
     unsigned long updateIntervalMs = ControlConfig::DEFAULT_UPDATE_INTERVAL_MS;
     uint8_t pressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
+    bool adaptiveFilterEnabled = true;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
     float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
     float adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
@@ -154,6 +159,7 @@ void sensorTask(void *pvParameters) {
       medianSampleDelayMs = settings.medianSampleDelayMs;
       updateIntervalMs = settings.updateIntervalMs;
       pressureAdc = settings.pressureAdc;
+      adaptiveFilterEnabled = settings.adaptiveFilterEnabled;
       offsetVoltage = settings.offsetVoltage;
       adaptiveAlphaMin = settings.adaptiveAlphaMin;
       adaptiveAlphaMax = settings.adaptiveAlphaMax;
@@ -168,6 +174,7 @@ void sensorTask(void *pvParameters) {
                                    pressureAdc,
                                    offsetVoltage,
                                    isValveOpen,
+                                   adaptiveFilterEnabled,
                                                                adaptiveAlphaMin,
                                                                adaptiveAlphaMax,
                                                                adaptiveDeltaRefPsi,

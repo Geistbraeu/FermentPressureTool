@@ -16,6 +16,7 @@ public:
     unsigned long oledMetricSwitchSeconds;
     unsigned int medianSampleCount;
     unsigned long medianSampleDelayMs;
+    bool adaptiveFilterEnabled;
     float adaptiveAlphaMin;
     float adaptiveAlphaMax;
     float adaptiveDeltaRefPsi;
@@ -54,6 +55,7 @@ public:
     bool setOledMetricSwitchSeconds(unsigned long val);
     bool setMedianSampleCount(unsigned int val);
     bool setMedianSampleDelayMs(unsigned long val);
+    bool setAdaptiveFilterEnabled(bool val);
     bool setAdaptiveAlphaMin(float val);
     bool setAdaptiveAlphaMax(float val);
     bool setAdaptiveDeltaRefPsi(float val);
