@@ -252,5 +252,19 @@ View the output in the serial monitor.
 
 ---
 
-**Version**: 1.2.0  
-**Last updated**: 2026-07-15
+<div align="center">
+
+  <p>
+    <strong>FermentPressureTool</strong><br>
+    ESP32-based fermentation pressure and temperature monitor
+  </p>
+
+  <p>
+    <strong>Version</strong> 1.2.6 · <strong>Updated</strong> 2026-09-20
+  </p>
+
+  <p>
+    Built with PlatformIO for ESP32 • Pressure control • Cloud integration
+  </p>
+
+</div>
