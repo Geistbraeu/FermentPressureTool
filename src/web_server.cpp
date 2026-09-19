@@ -169,7 +169,7 @@ void handleApi() {
         }
 
         String json = "{\"pressure\":" + String(runtime.pressure, 2) + 
-                       ",\"voltage\":" + String(runtime.voltage, 3) + 
+                       ",\"voltage\":" + String(runtime.voltage, 4) + 
                        ",\"temperature\":" + String(runtime.temperature, 2) +
                        ",\"valveActivationsPerHour\":" + String(runtime.valveActivationsPerHour) +
                        ",\"tempConnected\":" + (runtime.isTempSensorConnected ? "true" : "false") +
