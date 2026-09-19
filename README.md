@@ -53,6 +53,21 @@ sensor's 0.5-4.5 V signal range. Connect `VDD`, `GND`, `SDA`, and `SCL` to the b
 `ADDR` to `GND` for address `0x48`. The ADS1115 and ESP32 must share ground. Do not exceed the
 ADS1115 supply voltage or its absolute input limits.
 
+### Recommended settings for external ADC
+
+When using the external ADS1115, the following settings are recommended for stable and responsive
+pressure readings:
+
+- Median Sample Count (odd, 3-31): `5`
+- Median Sample Delay (ms): `10`
+- Update Interval (ms): `50`
+
+These values reduce sensor noise while keeping the UI and pressure control responsive enough for
+fermentation monitoring.
+
+When using the external ADS1115, the adaptive filter can be disabled if the ADC already provides a
+stable signal and additional smoothing is not needed.
+
 ## 📁 Project Structure
 
 ```
