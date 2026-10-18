@@ -87,7 +87,7 @@ void setup() {
     Serial.println("OLED mirror initialization failed");
   }
 
-  // Задача для чтения сенсора (Core 1)
+  // Задача для чтения сенсора (Core 0)
   const BaseType_t sensorTaskResult = xTaskCreatePinnedToCore(
     sensorTask,
     "SensorTask",
@@ -170,7 +170,7 @@ void processSampledData() {
   }
 }
 
-// --- ЛОГИКА СЕНСОРА (Core 1) ---
+// --- ЛОГИКА СЕНСОРА (Core 0) ---
 void sensorTask(void *pvParameters) {
   unsigned long lastProcessAt = 0;
 

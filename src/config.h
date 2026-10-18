@@ -48,6 +48,7 @@ namespace DisplayConfig {
 
 // Passive I2C monitor for the independent Ferminator OLED controller.
 namespace OledMirrorConfig {
+  constexpr bool SHOW_DEBUG_INFO = false;
   constexpr int I2C_SDA_PIN = 9;
   constexpr int I2C_SCL_PIN = 8;
   constexpr size_t CAPTURE_BUFFER_SIZE = 8192;
@@ -142,10 +143,10 @@ namespace CloudConfig {
 
 // ==================== FREERTOS TASK CONFIGURATION ====================
 namespace TaskConfig {
-  // Sensor task (Core 1)
+  // Keep ADC/OneWire interrupt-masking work away from the capture ISR on core 1.
   constexpr int SENSOR_TASK_STACK_SIZE = 4096;
   constexpr int SENSOR_TASK_PRIORITY = 1;
-  constexpr int SENSOR_TASK_CORE = 1;
+  constexpr int SENSOR_TASK_CORE = 0;
 
   // Network task (Core 0)
   constexpr int NETWORK_TASK_STACK_SIZE = 8192;

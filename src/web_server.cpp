@@ -169,6 +169,18 @@ static void handleOledFrame() {
                128);
     }
 
+    // Metadata and pixels must come from the same captured snapshot.
+    server.sendHeader("Cache-Control", "no-store");
+    server.sendHeader("X-OLED-Sequence", String(snapshot.sequence));
+    server.sendHeader("X-OLED-Flags", String(
+        (snapshot.displayEnabled ? 1 : 0) |
+        (snapshot.displayAllOn ? 2 : 0) |
+        (snapshot.inverse ? 4 : 0) |
+        (snapshot.segmentRemap ? 8 : 0) |
+        (snapshot.comScanReverse ? 16 : 0)));
+    server.sendHeader("X-OLED-Start-Line", String(snapshot.startLine));
+    server.sendHeader("X-OLED-Display-Offset", String(snapshot.displayOffset));
+    server.sendHeader("X-OLED-Known-State", String(snapshot.knownState));
     server.setContentLength(sizeof(visibleFrame));
     server.send(200, "application/octet-stream", "");
     server.sendContent(reinterpret_cast<const char*>(visibleFrame),
@@ -181,6 +193,29 @@ void handleApi() {
         SettingsSnapshot cfg = readSettingsSnapshot();
         OledMirror::Status oled;
         OledMirror::getStatus(oled);
+        const uint32_t timingNow = millis();
+        const uint32_t intervals = oled.timing.frames > 0 ? oled.timing.frames - 1 : 0;
+        String frameTimingJson = "{\"frames\":" + String(oled.timing.frames) +
+            ",\"intervals\":" + String(intervals) +
+            ",\"observedMs\":" + String(oled.timing.frames > 0
+                ? timingNow - oled.timing.firstFrameMs : 0) +
+            ",\"currentGapMs\":" + (oled.timing.frames > 0
+                ? String(timingNow - oled.timing.lastFrameMs) : String("null")) +
+            ",\"lastIntervalMs\":" + (intervals > 0
+                ? String(oled.timing.lastIntervalMs) : String("null")) +
+            ",\"minIntervalMs\":" + (intervals > 0
+                ? String(oled.timing.minIntervalMs) : String("null")) +
+            ",\"meanIntervalMs\":" + (intervals > 0
+                ? String(static_cast<double>(oled.timing.totalIntervalMs) / intervals, 2)
+                : String("null")) +
+            ",\"maxIntervalMs\":" + (intervals > 0
+                ? String(oled.timing.maxIntervalMs) : String("null")) +
+            ",\"bucketBoundsMs\":[1500,3000,5000,10000,30000],\"buckets\":[";
+        for (size_t i = 0; i < 6; ++i) {
+            if (i != 0) frameTimingJson += ',';
+            frameTimingJson += String(oled.timing.buckets[i]);
+        }
+        frameTimingJson += "]}";
 
         long remaining = -1;
         if (runtime.manualOverride) {
@@ -214,6 +249,10 @@ void handleApi() {
                        ",\"oledCapturedBytes\":" + String(oled.capturedBytes) +
                        ",\"oledLastUpdateMs\":" + String(oled.lastUpdateMs) +
                        ",\"oledOverflows\":" + String(oled.overflowCount) +
+                       ",\"oledCaptureErrors\":" + String(oled.captureErrors) +
+                       ",\"oledDroppedFrames\":" + String(oled.droppedFrames) +
+                       ",\"oledRecovering\":" + (oled.recovering ? "true" : "false") +
+                       ",\"oledFrameTiming\":" + frameTimingJson +
                        ",\"oledDisplayEnabled\":" + (oled.displayEnabled ? "true" : "false") +
                        ",\"oledDisplayAllOn\":" + (oled.displayAllOn ? "true" : "false") +
                        ",\"oledInverse\":" + (oled.inverse ? "true" : "false") +
@@ -221,6 +260,7 @@ void handleApi() {
                        ",\"oledComScanReverse\":" + (oled.comScanReverse ? "true" : "false") +
                        ",\"oledStartLine\":" + String(oled.startLine) +
                        ",\"oledDisplayOffset\":" + String(oled.displayOffset) +
+                       ",\"oledKnownState\":" + String(oled.knownState) +
                        ",\"firmwareVersion\":\"" + escapeJsonString(cfg.firmwareVersion) + "\"" +
                        ",\"firmwareBuildDate\":\"" + escapeJsonString(cfg.firmwareBuildDate) + "\"}";
         server.send(200, "application/json", json);

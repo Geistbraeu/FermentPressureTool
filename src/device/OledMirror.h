@@ -2,6 +2,7 @@
 #define OLED_MIRROR_H
 
 #include <Arduino.h>
+#include "device/OledFrameTiming.h"
 
 namespace OledMirror {
   constexpr size_t FRAMEBUFFER_SIZE = 128 * 64 / 8;
@@ -14,9 +15,12 @@ namespace OledMirror {
     uint32_t sequence = 0;
     uint32_t lastUpdateMs = 0;
     uint32_t overflowCount = 0;
+    uint32_t captureErrors = 0;
+    uint32_t droppedFrames = 0;
     uint16_t capturedBytes = 0;
     uint8_t startLine = 0;
     uint8_t displayOffset = 0;
+    uint8_t knownState = 0;
     bool ready = false;
     bool displayEnabled = false;
     bool displayAllOn = false;
@@ -26,13 +30,18 @@ namespace OledMirror {
   };
 
   struct Status {
+    FrameTiming timing;
     uint32_t sequence = 0;
     uint32_t lastUpdateMs = 0;
     uint32_t overflowCount = 0;
+    uint32_t captureErrors = 0;
+    uint32_t droppedFrames = 0;
     uint16_t capturedBytes = 0;
     uint8_t startLine = 0;
     uint8_t displayOffset = 0;
+    uint8_t knownState = 0;
     bool ready = false;
+    bool recovering = false;
     bool displayEnabled = false;
     bool displayAllOn = false;
     bool inverse = false;

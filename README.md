@@ -183,6 +183,21 @@ All pins are defined centrally in `config.h`. Edit the values before building as
 - These lines are monitored passively: firmware does not act as an I2C master and sends no ACKs or data.
 - Connect in parallel to the OLED bus and share GND. ESP32 inputs are 3.3 V; do not connect directly to a bus pulled up to 5 V.
 - Supports SH1106 128x64 display data at address `0x3C` or `0x3D`. It accounts for the controller's 132-column RAM and the 2-column visible-area offset; the web portal shows the display after the full visible area is captured.
+- Orientation follows the module's A1/C8 mounting convention. Frame metadata is sent in `X-OLED-*` headers with the matching pixels, not taken from a separate status request.
+- `/oled` remains a 1024-byte page-order binary frame. Headers: `X-OLED-Sequence`, `X-OLED-Start-Line`, `X-OLED-Display-Offset`, and `X-OLED-Flags` (bits 0–4: display enabled, all on, inverse, segment remap, reverse COM scan).
+- Command parameters can span I2C transactions. A capture error invalidates only the candidate refresh: the last accepted frame stays available, with its original timestamp and sequence.
+- Capture uses a dedicated level-3 IRAM GPIO interrupt on the setup core (core 1), away from Wi-Fi/cloud tasks, not Arduino per-pin callbacks. ADC/OneWire sensor work runs on core 0 to avoid masking capture interrupts. It owns the GPIO interrupt source; do not combine it with `attachInterrupt`/the GPIO ISR service without redesigning capture.
+- A START interrupt begins direct GPIO sampling until STOP, bounded to 20 ms per transaction. This avoids per-edge interrupt dispatch latency, but can delay other work on core 1 by up to 20 ms. It targets the test stand's 100 kHz, at-most-128-byte data chunks; longer/clock-stretched transactions time out.
+- Incomplete byte boundaries, capture timeouts, malformed transfers and buffer overflows invalidate coverage. `oledCaptureErrors` in `/api`, the web status and Serial report synchronization loss independently of buffer overflows. These counters cannot detect every possible corrupted byte (I2C has no payload checksum).
+- Publication requires one complete, sequential refresh of the visible RAM, from page 0/column 2 through page 7/column 129, followed by at least 3 ms of idle decoded traffic. Gaps, repeated addresses and restarts discard the candidate instead of accumulating coverage across different refreshes. This deliberately targets full-frame writers such as the test stand; partial-only updates or other page orders do not publish new frames.
+- `/api` exposes `oledDroppedFrames` and `oledRecovering`. During reacquisition the web explicitly holds the last complete frame; capture errors remain visible rather than being suppressed. Each page selection requires both column-address nibbles before accepting data.
+- `oledFrameTiming` records successful full-frame publications independently of browser polling: frame/interval counts, observation duration, current wait, last/minimum/mean/maximum completed interval (milliseconds), and six non-overlapping gap buckets (`<=1500`, `1501-3000`, `3001-5000`, `5001-10000`, `10001-30000`, `>30000` ms). Before two successes, interval metrics are `null`. The current unfinished wait is not yet included in completed-interval metrics.
+- `OledMirrorConfig::SHOW_DEBUG_INFO` in `src/config.h` controls detailed OLED diagnostics in the portal (default `false`). Set it to `true` and rebuild/upload to show frame timing, capture counters, byte coverage and frame age. Basic status and frame-read errors remain visible in either mode; this flag does not change Serial logging.
+- Timing statistics accumulate in RAM until reboot and survive page reloads or closing the browser, even with debug display disabled. They remain available through `/api` and are shown under the OLED status when debug display is enabled. No flash writes or per-frame Serial logging are needed. Leave the receiver powered for a half-hour run, then read `/api` without rebooting it.
+- Attaching after OLED initialization (or losing synchronization) leaves display settings unknown. The web explicitly labels this as a RAM preview and renders unknown settings in raw RAM order instead of assuming the display is off. Restart the source while the receiver is listening to capture its actual configuration.
+- `X-OLED-Known-State` / `oledKnownState` is a bit mask: bits 0–6 indicate observed display enable, segment remap, COM scan, start line, offset, inverse and all-on settings. A value of 127 means all settings were observed.
+- Run web mirror regression tests with `node --test test\oled_mirror.test.cjs`. GPIO capture timing still requires verification on the real I2C bus.
+- Compile-time C++ frame-order tests: `xtensa-esp32s3-elf-g++ -std=c++11 -fconstexpr-depth=2048 -Wall -Wextra -Werror -Isrc -fsyntax-only test\oled_frame_coverage.cpp` (using the PlatformIO toolchain executable).
 
 ### Network Parameters
 - **Hostname**: `ferment01` (accessible as `ferment01.local`)
@@ -250,7 +265,8 @@ Cloud uploads are performed automatically in the firmware's main loop and are sk
 ## 🔄 Multithreading Architecture
 
 The system uses tasks on both ESP32 cores:
-- **Core 1**: Sensor operations (reading sensors, valve control)
+- **Core 1**: Passive OLED capture interrupt
+- **Core 0**: Sensor operations (reading sensors, valve control)
 - **Core 0**: Network operations (WiFi, cloud requests, web server) and decoding the captured OLED bus
 
 Synchronization is handled through the `RuntimeState` structure using semaphores.

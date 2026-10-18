@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include "config.h"
 #include "WebViewModels.h"
 
 String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
@@ -344,9 +345,12 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     </div>
   </div>
 
-  <section class="oled-card" aria-label="Ferminator OLED mirror">
+  <section class="oled-card" aria-label="Ferminator OLED mirror" data-debug-info=")rawhtml";
+    html += OledMirrorConfig::SHOW_DEBUG_INFO ? "true" : "false";
+    html += R"rawhtml(">
     <div class="section-title">Ferminator OLED</div>
     <div id="oled-status" class="oled-status">Waiting for display data...</div>
+    <div id="oled-timing" class="oled-status" hidden>Frame timing: waiting for two complete frames...</div>
     <canvas id="oled-screen" class="oled-screen" width="128" height="64"></canvas>
   </section>
 
@@ -917,8 +921,12 @@ const firmwareBuildDateEl = document.getElementById('fw-build-date');
 const firmwareBuildLabelEl = document.getElementById('fw-build-label');
 const oledCanvas = document.getElementById('oled-screen');
 const oledStatusEl = document.getElementById('oled-status');
+const oledTimingEl = document.getElementById('oled-timing');
+const oledDebugInfoEnabled = oledCanvas.closest('.oled-card').dataset.debugInfo === 'true';
+if (oledTimingEl) oledTimingEl.hidden = !oledDebugInfoEnabled;
 const oledContext = oledCanvas ? oledCanvas.getContext('2d') : null;
 let lastOledSequence = -1;
+let liveDataRefreshInProgress = false;
 
 function showStatus(message, kind) {
   if (!statusEl) return;
@@ -985,13 +993,15 @@ function renderOledFrame(frame, data) {
 
   oledContext.fillStyle = '#000';
   oledContext.fillRect(0, 0, 128, 64);
-  const enabled = Boolean(data.oledDisplayEnabled);
-  const allOn = Boolean(data.oledDisplayAllOn);
-  const inverse = Boolean(data.oledInverse);
-  const segmentRemap = Boolean(data.oledSegmentRemap);
-  const comScanReverse = Boolean(data.oledComScanReverse);
-  const startLine = Number(data.oledStartLine) || 0;
-  const displayOffset = Number(data.oledDisplayOffset) || 0;
+  const known = Number(data.oledKnownState) || 0;
+  // Unobserved settings mean a raw RAM preview, not an observed display-off.
+  const enabled = !(known & 1) || Boolean(data.oledDisplayEnabled);
+  const allOn = (known & 64) !== 0 && Boolean(data.oledDisplayAllOn);
+  const inverse = (known & 32) !== 0 && Boolean(data.oledInverse);
+  const segmentRemap = !(known & 2) || Boolean(data.oledSegmentRemap);
+  const comScanReverse = !(known & 4) || Boolean(data.oledComScanReverse);
+  const startLine = (known & 8) ? Number(data.oledStartLine) || 0 : 0;
+  const displayOffset = (known & 16) ? Number(data.oledDisplayOffset) || 0 : 0;
 
   if (!enabled) return;
 
@@ -1000,29 +1010,72 @@ function renderOledFrame(frame, data) {
     for (let column = 0; column < 128; column++) {
       const value = frame[page * 128 + column];
       for (let bit = 0; bit < 8; bit++) {
-        let lit = allOn || (value & (1 << bit)) !== 0;
-        if (inverse) lit = !lit;
+        const lit = allOn || (((value & (1 << bit)) !== 0) !== inverse);
         if (!lit) continue;
 
-        const x = segmentRemap ? 127 - column : column;
+        // The module is mounted for normal RAM order with A1/C8.
+        const x = segmentRemap ? column : 127 - column;
         let y = (page * 8 + bit - startLine + displayOffset + 64) % 64;
-        if (comScanReverse) y = 63 - y;
+        if (!comScanReverse) y = 63 - y;
         oledContext.fillRect(x, y, 1, 1);
       }
     }
   }
 }
 
+function renderOledTiming(timing) {
+  if (!oledTimingEl || !oledDebugInfoEnabled) return;
+  if (!timing || !Number.isInteger(timing.frames) ||
+      timing.frames < 0 || !Number.isInteger(timing.intervals) ||
+      timing.intervals !== Math.max(0, timing.frames - 1) ||
+      !Number.isFinite(timing.observedMs) || timing.observedMs < 0 ||
+      !Array.isArray(timing.buckets) || timing.buckets.length !== 6 ||
+      timing.buckets.some(count => !Number.isInteger(count) || count < 0) ||
+      timing.buckets.reduce((sum, count) => sum + count, 0) !== timing.intervals ||
+      (timing.intervals > 0 &&
+        [timing.lastIntervalMs, timing.minIntervalMs, timing.meanIntervalMs,
+         timing.maxIntervalMs, timing.currentGapMs]
+          .some(ms => !Number.isFinite(ms) || ms < 0))) {
+    oledTimingEl.textContent = 'Frame timing statistics unavailable.';
+    return;
+  }
+  const elapsed = Math.floor(timing.observedMs / 1000);
+  const duration = Math.floor(elapsed / 60) + 'm ' + elapsed % 60 + 's';
+  const seconds = ms => ms === null ? 'n/a' : (ms / 1000).toFixed(3) + 's';
+  const summary = 'Good frames: ' + timing.frames + ' · observed: ' + duration;
+  if (timing.intervals === 0) {
+    oledTimingEl.textContent = summary + ' · waiting for two complete frames';
+    return;
+  }
+  oledTimingEl.textContent = summary +
+    ' · gaps last/min/avg/max: ' +
+    [timing.lastIntervalMs, timing.minIntervalMs,
+     timing.meanIntervalMs, timing.maxIntervalMs].map(seconds).join(' / ') +
+    ' · current wait: ' + seconds(timing.currentGapMs) +
+    ' · interval counts [<=1.5s / 1.5-3s / 3-5s / 5-10s / 10-30s / >30s]: ' +
+    timing.buckets.join(' / ');
+}
+
 async function refreshOledMirror(data) {
+  renderOledTiming(data.oledFrameTiming);
   if (!oledStatusEl) return;
 
   if (!Boolean(data.oledReady)) {
+    if (!oledDebugInfoEnabled) {
+      oledStatusEl.textContent = 'Waiting for a complete display frame...';
+      return;
+    }
     oledStatusEl.textContent = 'Waiting for a complete display frame (' +
-      Number(data.oledCapturedBytes) + '/1024 bytes)...';
+      Number(data.oledCapturedBytes) + '/1024 bytes)...' +
+      (Number(data.oledCaptureErrors) > 0
+        ? ' · capture synchronization errors: ' + Number(data.oledCaptureErrors) : '') +
+      (Number(data.oledOverflows) > 0
+        ? ' · capture buffer overflows: ' + Number(data.oledOverflows) : '');
     return;
   }
 
   const sequence = Number(data.oledSequence);
+  let knownState = Number(data.oledKnownState) || 0;
   if (sequence !== lastOledSequence) {
     try {
       const response = await fetch('/oled', { cache: 'no-store' });
@@ -1035,24 +1088,66 @@ async function refreshOledMirror(data) {
         oledStatusEl.textContent = 'Invalid captured OLED frame size.';
         return;
       }
-      renderOledFrame(frame, data);
-      lastOledSequence = sequence;
+      const flags = Number(response.headers.get('X-OLED-Flags'));
+      const frameSequence = Number(response.headers.get('X-OLED-Sequence'));
+      const startLine = Number(response.headers.get('X-OLED-Start-Line'));
+      const displayOffset = Number(response.headers.get('X-OLED-Display-Offset'));
+      knownState = Number(response.headers.get('X-OLED-Known-State'));
+      if (!response.headers.has('X-OLED-Flags') ||
+          !response.headers.has('X-OLED-Sequence') ||
+          !response.headers.has('X-OLED-Start-Line') ||
+          !response.headers.has('X-OLED-Display-Offset') ||
+          !response.headers.has('X-OLED-Known-State') ||
+          !Number.isInteger(flags) || flags < 0 || flags > 31 ||
+          !Number.isInteger(frameSequence) || frameSequence < 0 ||
+          !Number.isInteger(startLine) || startLine < 0 || startLine > 63 ||
+          !Number.isInteger(displayOffset) || displayOffset < 0 || displayOffset > 63 ||
+          !Number.isInteger(knownState) || knownState < 0 || knownState > 127) {
+        oledStatusEl.textContent = 'Invalid captured OLED frame metadata.';
+        return;
+      }
+      renderOledFrame(frame, {
+        oledDisplayEnabled: (flags & 1) !== 0,
+        oledDisplayAllOn: (flags & 2) !== 0,
+        oledInverse: (flags & 4) !== 0,
+        oledSegmentRemap: (flags & 8) !== 0,
+        oledComScanReverse: (flags & 16) !== 0,
+        oledStartLine: startLine,
+        oledDisplayOffset: displayOffset,
+        oledKnownState: knownState
+      });
+      lastOledSequence = frameSequence;
     } catch (error) {
       oledStatusEl.textContent = 'Network error while reading the OLED frame.';
       return;
     }
   }
 
+  oledStatusEl.textContent = Boolean(data.oledRecovering)
+    ? 'Holding last complete frame · reacquiring'
+    : knownState === 127
+      ? 'Mirroring active'
+      : 'RAM preview (display initialization not fully captured)';
+  if (!oledDebugInfoEnabled) return;
+
   const nowMs = Number(data.nowMs) || 0;
   const updatedMs = Number(data.oledLastUpdateMs) || 0;
   const ageMs = (nowMs - updatedMs + 4294967296) % 4294967296;
   const overflowCount = Number(data.oledOverflows) || 0;
-  oledStatusEl.textContent = 'Mirroring active · last display data ' +
+  const captureErrors = Number(data.oledCaptureErrors) || 0;
+  const droppedFrames = Number(data.oledDroppedFrames) || 0;
+  oledStatusEl.textContent += (Boolean(data.oledRecovering)
+    ? ' (' + Number(data.oledCapturedBytes) + '/1024 bytes)' : '') +
+    ' · last display data ' +
     Math.floor(ageMs / 1000) + 's ago' +
-    (overflowCount > 0 ? ' · capture buffer overflows: ' + overflowCount : '');
+    (overflowCount > 0 ? ' · capture buffer overflows: ' + overflowCount : '') +
+    (captureErrors > 0 ? ' · capture synchronization errors: ' + captureErrors : '') +
+    (droppedFrames > 0 ? ' · rejected refreshes: ' + droppedFrames : '');
 }
 
 async function refreshLiveData() {
+  if (liveDataRefreshInProgress) return;
+  liveDataRefreshInProgress = true;
   try {
     const response = await fetch('/api', { cache: 'no-store' });
     if (!response.ok) return;
@@ -1129,6 +1224,8 @@ async function refreshLiveData() {
     setFirmwareInfo(data.firmwareVersion, data.firmwareBuildDate);
   } catch (e) {
     // Ignore transient network or parsing failures; next poll will retry.
+  } finally {
+    liveDataRefreshInProgress = false;
   }
 }
 
