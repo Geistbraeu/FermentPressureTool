@@ -20,6 +20,10 @@ if not version:
     version = "dev"
 
 env.Replace(PROGNAME="firmware")
+build_info_path = Path(env.subst("$PROJECT_DIR")) / "include" / "build_info.h"
+firmware_bin = "$BUILD_DIR/${PROGNAME}.bin"
+
+env.Depends(firmware_bin, str(build_info_path))
 
 
 def _copy_versioned_firmware_bin(source, target, env):
@@ -31,4 +35,4 @@ def _copy_versioned_firmware_bin(source, target, env):
     shutil.copy2(source_path, target_path)
 
 
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", _copy_versioned_firmware_bin)
+env.AddPostAction("buildprog", _copy_versioned_firmware_bin)
