@@ -292,7 +292,7 @@ DBG("Debug message here");
   </p>
 
   <p>
-    <strong>Версия</strong> 1.2.7 · <strong>Обновлено</strong> 2026-10-22
+    <strong>Версия</strong> 2.0.2 · <strong>Обновлено</strong> 2026-10-18
   </p>
 
   <p>

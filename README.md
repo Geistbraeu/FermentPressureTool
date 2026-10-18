@@ -291,7 +291,7 @@ View the output in the serial monitor.
   </p>
 
   <p>
-    <strong>Version</strong> 1.2.7 · <strong>Updated</strong> 2026-10-22
+    <strong>Version</strong> 2.0.2 · <strong>Updated</strong> 2026-10-18
   </p>
 
   <p>
