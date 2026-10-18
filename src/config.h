@@ -46,6 +46,16 @@ namespace DisplayConfig {
   constexpr int LAYOUT_X_CENTER = 85;
 }
 
+// Passive I2C monitor for the independent Ferminator OLED controller.
+namespace OledMirrorConfig {
+  constexpr int I2C_SDA_PIN = 9;
+  constexpr int I2C_SCL_PIN = 8;
+  constexpr size_t CAPTURE_BUFFER_SIZE = 8192;
+  constexpr unsigned int TASK_STACK_SIZE = 4096;
+  constexpr int TASK_PRIORITY = 1;
+  constexpr int TASK_CORE = 0;
+}
+
 // ==================== SENSOR CALIBRATION ====================
 namespace SensorConfig {
   constexpr uint8_t PRESSURE_ADC_ESP32 = 0;

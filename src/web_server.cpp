@@ -13,6 +13,7 @@
 #include "Settings.h"
 #include "RuntimeState.h"
 #include "CloudManager.h"
+#include "device/OledMirror.h"
 
 extern RuntimeState runtimeState;
 
@@ -150,10 +151,36 @@ void handleRoot() {
     server.send(200, "text/html", getHtml(runtime, cfg));
 }
 
+static void handleOledFrame() {
+    OledMirror::Snapshot snapshot;
+    OledMirror::getSnapshot(snapshot);
+    if (!snapshot.ready) {
+        server.send(503, "text/plain", "OLED frame is not ready");
+        return;
+    }
+
+    uint8_t visibleFrame[OledMirror::FRAMEBUFFER_SIZE];
+    for (size_t page = 0; page < 8; ++page) {
+        const size_t ramOffset = page * OledMirror::RAM_WIDTH +
+                                 OledMirror::VISIBLE_COLUMN_OFFSET;
+        const size_t frameOffset = page * 128;
+        memcpy(&visibleFrame[frameOffset],
+               &snapshot.framebuffer[ramOffset],
+               128);
+    }
+
+    server.setContentLength(sizeof(visibleFrame));
+    server.send(200, "application/octet-stream", "");
+    server.sendContent(reinterpret_cast<const char*>(visibleFrame),
+                       sizeof(visibleFrame));
+}
+
 void handleApi() {
     if (server.method() == HTTP_GET) {
         RuntimeSnapshot runtime = readRuntimeSnapshot();
         SettingsSnapshot cfg = readSettingsSnapshot();
+        OledMirror::Status oled;
+        OledMirror::getStatus(oled);
 
         long remaining = -1;
         if (runtime.manualOverride) {
@@ -182,6 +209,18 @@ void handleApi() {
                        ",\"lastTsSyncMs\":" + String(cloudLastTsSyncMs()) +
                        ",\"lastBfSyncMs\":" + String(cloudLastBfSyncMs()) +
                        ",\"lastHttpSyncMs\":" + String(cloudLastHttpSyncMs()) +
+                       ",\"oledReady\":" + (oled.ready ? "true" : "false") +
+                       ",\"oledSequence\":" + String(oled.sequence) +
+                       ",\"oledCapturedBytes\":" + String(oled.capturedBytes) +
+                       ",\"oledLastUpdateMs\":" + String(oled.lastUpdateMs) +
+                       ",\"oledOverflows\":" + String(oled.overflowCount) +
+                       ",\"oledDisplayEnabled\":" + (oled.displayEnabled ? "true" : "false") +
+                       ",\"oledDisplayAllOn\":" + (oled.displayAllOn ? "true" : "false") +
+                       ",\"oledInverse\":" + (oled.inverse ? "true" : "false") +
+                       ",\"oledSegmentRemap\":" + (oled.segmentRemap ? "true" : "false") +
+                       ",\"oledComScanReverse\":" + (oled.comScanReverse ? "true" : "false") +
+                       ",\"oledStartLine\":" + String(oled.startLine) +
+                       ",\"oledDisplayOffset\":" + String(oled.displayOffset) +
                        ",\"firmwareVersion\":\"" + escapeJsonString(cfg.firmwareVersion) + "\"" +
                        ",\"firmwareBuildDate\":\"" + escapeJsonString(cfg.firmwareBuildDate) + "\"}";
         server.send(200, "application/json", json);
@@ -700,10 +739,13 @@ void handleFirmwareUpdateResult() {
 }
 
 void webServerTask(void *pvParameters) {
+    (void)pvParameters;
     server.on("/", handleRoot);
     server.on("/api", handleApi);
+    server.on("/oled", HTTP_GET, handleOledFrame);
     server.on("/update", HTTP_POST, handleFirmwareUpdateResult, handleFirmwareUpdateUpload);
     server.begin();
+    Serial.println("[Web] Main HTTP server active on port 80");
     for (;;) {
         server.handleClient();
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -711,7 +753,7 @@ void webServerTask(void *pvParameters) {
 }
 
 void initWebServer() {
-    xTaskCreatePinnedToCore(
+    const BaseType_t result = xTaskCreatePinnedToCore(
         webServerTask,
         "WebServerTask",
         4096,
@@ -720,4 +762,7 @@ void initWebServer() {
         NULL,
         0 // Core 0
     );
+    if (result != pdPASS) {
+        Serial.println("[Web] ERROR: failed to create web server task");
+    }
 }

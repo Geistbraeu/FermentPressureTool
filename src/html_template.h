@@ -128,6 +128,29 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     background: linear-gradient(135deg, #f87171, #dc2626);
     color: #fff;
   }
+  .oled-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .oled-screen {
+    display: block;
+    width: 100%;
+    max-width: 512px;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    margin: 10px auto 0;
+    background: #000;
+    border: 1px solid var(--border);
+    image-rendering: pixelated;
+  }
+  .oled-status {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 4px;
+  }
 
   /* TABS */
   .tabs-nav {
@@ -320,6 +343,12 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     html += R"rawhtml(</div>
     </div>
   </div>
+
+  <section class="oled-card" aria-label="Ferminator OLED mirror">
+    <div class="section-title">Ferminator OLED</div>
+    <div id="oled-status" class="oled-status">Waiting for display data...</div>
+    <canvas id="oled-screen" class="oled-screen" width="128" height="64"></canvas>
+  </section>
 
   <!-- VALVE CONTROLS -->
   <div class="controls">
@@ -886,6 +915,10 @@ const statusEl = document.getElementById('status-message');
 const firmwareVersionEl = document.getElementById('fw-version');
 const firmwareBuildDateEl = document.getElementById('fw-build-date');
 const firmwareBuildLabelEl = document.getElementById('fw-build-label');
+const oledCanvas = document.getElementById('oled-screen');
+const oledStatusEl = document.getElementById('oled-status');
+const oledContext = oledCanvas ? oledCanvas.getContext('2d') : null;
+let lastOledSequence = -1;
 
 function showStatus(message, kind) {
   if (!statusEl) return;
@@ -947,12 +980,85 @@ function setFirmwareInfo(version, buildDate) {
   }
 }
 
+function renderOledFrame(frame, data) {
+  if (!oledContext || frame.length !== 1024) return;
+
+  oledContext.fillStyle = '#000';
+  oledContext.fillRect(0, 0, 128, 64);
+  const enabled = Boolean(data.oledDisplayEnabled);
+  const allOn = Boolean(data.oledDisplayAllOn);
+  const inverse = Boolean(data.oledInverse);
+  const segmentRemap = Boolean(data.oledSegmentRemap);
+  const comScanReverse = Boolean(data.oledComScanReverse);
+  const startLine = Number(data.oledStartLine) || 0;
+  const displayOffset = Number(data.oledDisplayOffset) || 0;
+
+  if (!enabled) return;
+
+  oledContext.fillStyle = '#fff';
+  for (let page = 0; page < 8; page++) {
+    for (let column = 0; column < 128; column++) {
+      const value = frame[page * 128 + column];
+      for (let bit = 0; bit < 8; bit++) {
+        let lit = allOn || (value & (1 << bit)) !== 0;
+        if (inverse) lit = !lit;
+        if (!lit) continue;
+
+        const x = segmentRemap ? 127 - column : column;
+        let y = (page * 8 + bit - startLine + displayOffset + 64) % 64;
+        if (comScanReverse) y = 63 - y;
+        oledContext.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+}
+
+async function refreshOledMirror(data) {
+  if (!oledStatusEl) return;
+
+  if (!Boolean(data.oledReady)) {
+    oledStatusEl.textContent = 'Waiting for a complete display frame (' +
+      Number(data.oledCapturedBytes) + '/1024 bytes)...';
+    return;
+  }
+
+  const sequence = Number(data.oledSequence);
+  if (sequence !== lastOledSequence) {
+    try {
+      const response = await fetch('/oled', { cache: 'no-store' });
+      if (!response.ok) {
+        oledStatusEl.textContent = 'Unable to read the captured OLED frame.';
+        return;
+      }
+      const frame = new Uint8Array(await response.arrayBuffer());
+      if (frame.length !== 1024) {
+        oledStatusEl.textContent = 'Invalid captured OLED frame size.';
+        return;
+      }
+      renderOledFrame(frame, data);
+      lastOledSequence = sequence;
+    } catch (error) {
+      oledStatusEl.textContent = 'Network error while reading the OLED frame.';
+      return;
+    }
+  }
+
+  const nowMs = Number(data.nowMs) || 0;
+  const updatedMs = Number(data.oledLastUpdateMs) || 0;
+  const ageMs = (nowMs - updatedMs + 4294967296) % 4294967296;
+  const overflowCount = Number(data.oledOverflows) || 0;
+  oledStatusEl.textContent = 'Mirroring active · last display data ' +
+    Math.floor(ageMs / 1000) + 's ago' +
+    (overflowCount > 0 ? ' · capture buffer overflows: ' + overflowCount : '');
+}
+
 async function refreshLiveData() {
   try {
     const response = await fetch('/api', { cache: 'no-store' });
     if (!response.ok) return;
 
     const data = await response.json();
+    await refreshOledMirror(data);
     const pressure = Number(data.pressure);
     const voltage = Number(data.voltage);
     const pressureConnected = Boolean(data.pressureConnected);

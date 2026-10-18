@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <Wire.h>
 #include <esp_adc_cal.h>
+#include <esp_system.h>
 #include <ESPmDNS.h>
 #include "config.h"
 #include "ConfigPortal.h"
@@ -11,6 +12,7 @@
 #include "RuntimeState.h"
 #include "debug.h"
 #include "device/DisplayManager.h"
+#include "device/OledMirror.h"
 #include "device/SensorManager.h"
 #include "device/SolenoidController.h"
 
@@ -23,20 +25,29 @@ void networkTask(void *pvParameters);
 void processSampledData();
 
 void setup() {
-  Serial.begin(NetworkConfig::SERIAL_BAUD_RATE);   
-  while (!Serial); 
+  Serial.begin(NetworkConfig::SERIAL_BAUD_RATE);
+  delay(300);
+  Serial.println("\n[BOOT] FermentPressureTool starting");
+  Serial.printf("[BOOT] Reset reason: %d\n", static_cast<int>(esp_reset_reason()));
 
-  Wire.begin();
-  DBG("I2C bus initialized");
+  Serial.println("[BOOT] Initializing I2C on GPIO 5 (SDA), GPIO 4 (SCL)");
+  Wire.begin(DisplayConfig::OLED_I2C_SDA_PIN, DisplayConfig::OLED_I2C_SCL_PIN);
+  Wire.setTimeOut(50);
 
   // Настройка АЦП и чтение калибровки из eFuse
+  Serial.println("[BOOT] Initializing pressure ADC; ADS1115 is optional");
   sensorManager.initAdc(&runtimeState.adc_chars);
 
   // Инициализация OLED
+  Serial.println("[BOOT] Initializing local OLED; display is optional");
   displayManager.init();
 
   // Инициализация Wi-Fi через ConfigPortal
-  ConfigPortal::begin();
+  Serial.println("[BOOT] Starting Wi-Fi connection/configuration");
+  const bool wifiConnected = ConfigPortal::begin();
+  Serial.println(wifiConnected
+                     ? "[BOOT] Wi-Fi connected; setup portal not needed"
+                     : "[BOOT] Wi-Fi unavailable; setup portal was entered");
 
   // Инициализация клапана
   solenoidController.init();
@@ -54,9 +65,11 @@ void setup() {
   settings.load();
 
   // Инициализация DS18B20
+  Serial.println("[BOOT] Initializing DS18B20; temperature sensor is optional");
   sensorManager.initTempSensor(settings.useTempSensor);
 
   // Создаем мьютекс для защиты общих данных
+  Serial.println("[BOOT] Creating runtime mutexes");
   runtimeState.dataMutex = xSemaphoreCreateMutex();
   runtimeState.settingsMutex = xSemaphoreCreateMutex();
   if (runtimeState.dataMutex == NULL || runtimeState.settingsMutex == NULL) {
@@ -67,10 +80,15 @@ void setup() {
   }
 
   // Инициализация веб-сервера
+  Serial.println("[BOOT] Starting web server");
   initWebServer();
 
+  if (!OledMirror::begin()) {
+    Serial.println("OLED mirror initialization failed");
+  }
+
   // Задача для чтения сенсора (Core 1)
-  xTaskCreatePinnedToCore(
+  const BaseType_t sensorTaskResult = xTaskCreatePinnedToCore(
     sensorTask,
     "SensorTask",
     TaskConfig::SENSOR_TASK_STACK_SIZE,
@@ -79,9 +97,15 @@ void setup() {
     NULL,
     TaskConfig::SENSOR_TASK_CORE
   );
+  if (sensorTaskResult != pdPASS) {
+    Serial.println("[BOOT] FATAL: failed to create sensor task");
+    for (;;) {
+      delay(1000);
+    }
+  }
 
   // Задача для Wi-Fi и облаков (Core 0)
-  xTaskCreatePinnedToCore(
+  const BaseType_t networkTaskResult = xTaskCreatePinnedToCore(
     networkTask,
     "NetworkTask",
     TaskConfig::NETWORK_TASK_STACK_SIZE,
@@ -90,8 +114,15 @@ void setup() {
     NULL,
     TaskConfig::NETWORK_TASK_CORE
   );
+  if (networkTaskResult != pdPASS) {
+    Serial.println("[BOOT] FATAL: failed to create network task");
+    for (;;) {
+      delay(1000);
+    }
+  }
 
   DBG("\n--- Система запущена на двух ядрах ---");
+  Serial.println("[BOOT] Startup complete");
 }
 
 void loop() {
@@ -268,4 +299,3 @@ void networkTask(void *pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(updateIntervalMs));
   }
 }
-

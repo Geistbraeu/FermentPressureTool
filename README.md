@@ -89,6 +89,7 @@ FermentPressureTool/
 │   │   └── CustomHTTPProvider.h/cpp
 │   └── device/
 │       ├── DisplayManager.h/cpp      # OLED display management
+│       ├── OledMirror.h/cpp          # Passive Ferminator OLED mirror
 │       ├── SensorManager.h/cpp       # Sensor reading (pressure, temperature)
 │       └── SolenoidController.h/cpp  # Valve control
 ├── include/                     # User libraries
@@ -177,6 +178,12 @@ Debug flags defined in `platformio.ini`:
 ### Hardware Pins (`src/config.h`)
 All pins are defined centrally in `config.h`. Edit the values before building as needed.
 
+### Ferminator OLED Mirror
+- Connect `GPIO8` to the Ferminator I2C SCL line and `GPIO9` to SDA.
+- These lines are monitored passively: firmware does not act as an I2C master and sends no ACKs or data.
+- Connect in parallel to the OLED bus and share GND. ESP32 inputs are 3.3 V; do not connect directly to a bus pulled up to 5 V.
+- Supports SH1106 128x64 display data at address `0x3C` or `0x3D`. It accounts for the controller's 132-column RAM and the 2-column visible-area offset; the web portal shows the display after the full visible area is captured.
+
 ### Network Parameters
 - **Hostname**: `ferment01` (accessible as `ferment01.local`)
 - **Web server port**: 80
@@ -193,6 +200,7 @@ Configure API keys and settings via the configuration portal or web interface:
 - The switch interval is configurable in the web interface; default is 3 seconds.
 - If the temperature sensor is disconnected, only pressure is shown.
 - If the pressure sensor is not connected, the display shows `Disconnected` and cloud uploads are skipped.
+- The independent Ferminator OLED is passively mirrored in the web portal through `GPIO8`/`GPIO9`.
 
 ## 🌐 Cloud Integration
 
@@ -223,6 +231,13 @@ Response:
 }
 ```
 
+### Get Ferminator OLED Frame
+```
+GET /oled
+```
+Returns the visible 1024-byte SH1106 area (`application/octet-stream`); the four non-visible RAM columns are omitted.
+Capture status and frame sequence are included in the `GET /api` response.
+
 ### Control the Valve
 ```
 POST /api
@@ -234,9 +249,9 @@ Cloud uploads are performed automatically in the firmware's main loop and are sk
 
 ## 🔄 Multithreading Architecture
 
-The system uses two tasks running on separate ESP32 cores:
+The system uses tasks on both ESP32 cores:
 - **Core 1**: Sensor operations (reading sensors, valve control)
-- **Core 0**: Network operations (WiFi, cloud requests, web server)
+- **Core 0**: Network operations (WiFi, cloud requests, web server) and decoding the captured OLED bus
 
 Synchronization is handled through the `RuntimeState` structure using semaphores.
 

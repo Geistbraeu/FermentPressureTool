@@ -12,6 +12,7 @@ static WebServer portalServer(80);
 static DNSServer dnsServer;
 
 static void handleRoot() {
+    Serial.println("[Portal] Setup page requested");
     String html = "<html><body>"
                   "<h1>Fermenter Setup</h1>"
                   "<form action='/save' method='POST'>"
@@ -27,6 +28,7 @@ static void handleRoot() {
 }
 
 static void handleSave() {
+    Serial.println("[Portal] Settings submission received");
     if (portalServer.hasArg("ssid") && portalServer.hasArg("pass") && portalServer.hasArg("devName")) {
         wifiSettings.save(
             portalServer.arg("ssid"),
@@ -34,22 +36,29 @@ static void handleSave() {
             portalServer.arg("devName")
         );
 
+        Serial.println("[Portal] Wi-Fi settings saved; restarting");
         portalServer.send(200, "text/html", "Settings saved. Restarting...");
         delay(1000);
         ESP.restart();
     } else {
+        Serial.println("[Portal] ERROR: required settings are missing");
         portalServer.send(400, "text/plain", "Invalid arguments");
     }
 }
 
 bool ConfigPortal::connect() {
+    Serial.println("[Wi-Fi] Loading saved network settings");
     wifiSettings.load();
 
-    if (wifiSettings.ssid == "") return false;
+    if (wifiSettings.ssid == "") {
+        Serial.println("[Wi-Fi] No saved SSID; starting setup portal");
+        return false;
+    }
 
     WiFi.disconnect();
     WiFi.setHostname(wifiSettings.devName.c_str());
     WiFi.begin(wifiSettings.ssid.c_str(), wifiSettings.pass.c_str());
+    Serial.println("[Wi-Fi] Connecting to saved network");
     
     // Wait up to 10 seconds for connection
     for (int i = 0; i < 20; i++) {
@@ -60,7 +69,7 @@ bool ConfigPortal::connect() {
         delay(500);
         Serial.print(".");
     }
-    
+    Serial.println("\n[Wi-Fi] Connection timed out; starting setup portal");
     return false;
 }
 
@@ -73,13 +82,30 @@ bool ConfigPortal::begin() {
 }
 
 void ConfigPortal::startSetupMode() {
-    WiFi.softAP("Ferment_Setup");
-    dnsServer.start(53, "*", WiFi.softAPIP());
-    
+    WiFi.mode(WIFI_AP);
+    for (;;) {
+        Serial.println("[Portal] Starting open access point: Ferment_Setup");
+        if (WiFi.softAP("Ferment_Setup")) {
+            break;
+        }
+        Serial.println("[Portal] ERROR: access point start failed; retrying in 5 seconds");
+        delay(5000);
+    }
+
+    const IPAddress portalIp = WiFi.softAPIP();
+    Serial.println("[Portal] Access point active; connect and open http://" +
+                   portalIp.toString() + "/");
+    if (!dnsServer.start(53, "*", portalIp)) {
+        Serial.println("[Portal] ERROR: captive DNS server start failed");
+    } else {
+        Serial.println("[Portal] Captive DNS server active");
+    }
+
     portalServer.on("/", handleRoot);
     portalServer.on("/save", handleSave);
     portalServer.onNotFound(handleRoot);
     portalServer.begin();
+    Serial.println("[Portal] HTTP setup page active");
 
     if (isOledConnected) {
         display.clearDisplay();
@@ -91,25 +117,16 @@ void ConfigPortal::startSetupMode() {
         display.display();
     }
 
-    unsigned long startMillis = millis();
-    while (millis() - startMillis < 300000) { // 5 minutes
+    unsigned long lastHeartbeat = millis();
+    for (;;) {
         dnsServer.processNextRequest();
         portalServer.handleClient();
+        const unsigned long now = millis();
+        if (now - lastHeartbeat >= 10000) {
+            Serial.printf("[Portal] Waiting for setup client; connected stations: %u\n",
+                          static_cast<unsigned>(WiFi.softAPgetStationNum()));
+            lastHeartbeat = now;
+        }
         delay(10);
-    }
-
-    // Timeout
-    WiFi.softAPdisconnect(true);
-    portalServer.stop();
-    
-    if (isOledConnected) {
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("No Network");
-        display.display();
-    }
-    
-    while (true) {
-        delay(1000);
     }
 }

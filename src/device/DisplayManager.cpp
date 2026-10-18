@@ -1,7 +1,6 @@
 #include "device/DisplayManager.h"
 #include "config.h"
 #include "Settings.h"
-#include <Wire.h>
 #include <Adafruit_GFX.h>
 
 Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, DisplayConfig::OLED_RESET_PIN);
@@ -9,7 +8,6 @@ bool isOledConnected = false;
 DisplayManager displayManager;
 
 bool DisplayManager::init() {
-  Wire.begin(DisplayConfig::OLED_I2C_SDA_PIN, DisplayConfig::OLED_I2C_SCL_PIN);
   if (display.begin(SSD1306_SWITCHCAPVCC, DisplayConfig::OLED_I2C_ADDRESS)) {
     isOledConnected = true;
     display.cp437(true);
@@ -22,7 +20,7 @@ bool DisplayManager::init() {
     return true;
   }
 
-  Serial.println(F("SSD1306 allocation failed (no OLED connected)"));
+  Serial.println(F("[OLED] Local display not detected; continuing without display"));
   return false;
 }
 
