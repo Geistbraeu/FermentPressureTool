@@ -5,6 +5,7 @@
 #include <Update.h>
 #include <cstring>
 #include "config.h"
+#include "build_info.h"
 #include "validation.h"
 #include "web_server.h"
 #include "html_template.h"
@@ -16,14 +17,6 @@
 extern RuntimeState runtimeState;
 
 WebServer server(80);
-
-#ifndef APP_VERSION
-#define APP_VERSION "dev"
-#endif
-
-#ifndef APP_BUILD_DATE
-#define APP_BUILD_DATE __DATE__
-#endif
 
 static bool firmwareUpdateHasError = false;
 static String firmwareUpdateErrorMessage;
@@ -74,11 +67,11 @@ static String escapeJsonString(const String& value) {
 }
 
 static String getFirmwareVersion() {
-    return String(APP_VERSION);
+    return String(buildinfo::kFirmwareVersion);
 }
 
 static String getFirmwareBuildDate() {
-    return formatBuildDateDdMmYyyy(APP_BUILD_DATE);
+    return formatBuildDateDdMmYyyy(buildinfo::kFirmwareBuildDate);
 }
 
 static String updateErrorToMessage() {
