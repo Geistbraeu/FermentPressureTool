@@ -179,6 +179,9 @@ Debug flags defined in `platformio.ini`:
 All pins are defined centrally in `config.h`. Edit the values before building as needed.
 
 ### Ferminator OLED Mirror
+- In **Main Settings**, **Ferminator Control** is disabled by default, including on upgrades without a saved setting. Enable it only on the controller connected to the Ferminator; the choice is stored separately in each device's NVS.
+- When disabled, the Ferminator OLED panel is not rendered, the capture task/interrupt and GPIO8/9 monitoring are not started, `/oled` returns HTTP 403, and Ferminator OLED status/timing fields are omitted from `/api`. Pressure/valve control, local OLED, optional temperature sensing and cloud integrations continue to work.
+- Changing this setting saves it and automatically restarts the device; the portal waits for reconnection and reloads. Saving the same value does not restart it. This enables the existing OLED mirror, not the still-unimplemented optocoupler buttons.
 - Connect `GPIO8` to the Ferminator I2C SCL line and `GPIO9` to SDA.
 - These lines are monitored passively: firmware does not act as an I2C master and sends no ACKs or data.
 - Connect in parallel to the OLED bus and share GND. ESP32 inputs are 3.3 V; do not connect directly to a bus pulled up to 5 V.

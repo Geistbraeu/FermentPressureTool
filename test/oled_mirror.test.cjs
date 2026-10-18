@@ -21,6 +21,7 @@ function harness(response, debugInfoEnabled = true) {
     },
     oledStatusEl: { textContent: '' },
     oledTimingEl: { textContent: '' },
+    oledCanvas: {},
     oledDebugInfoEnabled: debugInfoEnabled,
     lastOledSequence: -1,
     fetch: async () => response
@@ -94,6 +95,7 @@ test('pixels use metadata from /oled, not the earlier /api snapshot', async () =
     'X-OLED-Display-Offset': '0'
   }));
   await context.refreshOledMirror({
+    ferminatorEnabled: true,
     oledReady: true, oledSequence: 41, oledSegmentRemap: false,
     oledComScanReverse: false
   });
@@ -103,7 +105,7 @@ test('pixels use metadata from /oled, not the earlier /api snapshot', async () =
 
 test('missing frame metadata is reported and does not mark the frame as read', async () => {
   const { context, pixels } = harness(frameResponse({}));
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 1 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 1 });
   assert.match(context.oledStatusEl.textContent, /Invalid.*metadata/);
   assert.equal(context.lastOledSequence, -1);
   assert.equal(pixels.length, 0);
@@ -122,7 +124,7 @@ test('invalid flags and offsets are rejected rather than rendered', async () => 
       'X-OLED-Display-Offset': '0',
       [name]: value
     }));
-    await context.refreshOledMirror({ oledReady: true, oledSequence: 1 });
+    await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 1 });
     assert.match(context.oledStatusEl.textContent, /Invalid.*metadata/);
     assert.equal(context.lastOledSequence, -1);
     assert.equal(pixels.length, 0);
@@ -133,8 +135,8 @@ test('an unavailable capture is reported and retried', async () => {
   const { context } = harness({ ok: false });
   let requests = 0;
   context.fetch = async () => { requests++; return { ok: false }; };
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 1 });
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 1 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 1 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 1 });
   assert.equal(requests, 2);
   assert.equal(context.lastOledSequence, -1);
   assert.match(context.oledStatusEl.textContent, /Unable to read/);
@@ -143,6 +145,7 @@ test('an unavailable capture is reported and retried', async () => {
 test('loss of synchronization is visible even without ring buffer overflows', async () => {
   const { context, pixels } = harness();
   await context.refreshOledMirror({
+    ferminatorEnabled: true,
     oledReady: false, oledCapturedBytes: 128,
     oledOverflows: 0, oledCaptureErrors: 17
   });
@@ -173,7 +176,7 @@ test('RAM preview is explicitly labelled when initialization was missed', async 
     'X-OLED-Start-Line': '0', 'X-OLED-Display-Offset': '0',
     'X-OLED-Known-State': '0'
   }));
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 1, oledKnownState: 0 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 1, oledKnownState: 0 });
   assert.deepEqual(pixels, [[0, 0]]);
   assert.match(context.oledStatusEl.textContent, /RAM preview.*initialization/);
 });
@@ -184,6 +187,7 @@ test('a capture error retains the last complete frame and reports reacquisition'
   let requests = 0;
   context.fetch = async () => { requests++; throw new Error('Unexpected fetch'); };
   await context.refreshOledMirror({
+    ferminatorEnabled: true,
     oledReady: true, oledSequence: 42, oledKnownState: 127,
     oledRecovering: true, oledCapturedBytes: 512,
     oledCaptureErrors: 3, oledDroppedFrames: 2
@@ -200,6 +204,7 @@ test('live polling cannot overlap and releases its lock after a failed request',
   let requests = 0;
   const context = vm.createContext({
     liveDataRefreshInProgress: false,
+    deviceRestartPending: false,
     fetch: () => {
       requests++;
       return new Promise(resolve => { finishRequest = resolve; });
@@ -207,7 +212,7 @@ test('live polling cannot overlap and releases its lock after a failed request',
   });
   vm.runInContext(source.slice(
     source.indexOf('async function refreshLiveData('),
-    source.indexOf('async function submitSettingsForm(')), context);
+    source.indexOf('async function reloadAfterRestart(')), context);
   const first = context.refreshLiveData();
   await context.refreshLiveData();
   assert.equal(requests, 1);
@@ -288,6 +293,7 @@ test('debug display defaults to off and is wired into the page', () => {
 test('debug off hides timing and capture counters without hiding recovery status', async () => {
   const { context } = harness(undefined, false);
   await context.refreshOledMirror({
+    ferminatorEnabled: true,
     oledReady: false, oledCapturedBytes: 128, oledCaptureErrors: 17
   });
   assert.equal(context.oledStatusEl.textContent, 'Waiting for a complete display frame...');
@@ -295,6 +301,7 @@ test('debug off hides timing and capture counters without hiding recovery status
 
   context.lastOledSequence = 42;
   await context.refreshOledMirror({
+    ferminatorEnabled: true,
     oledReady: true, oledSequence: 42, oledKnownState: 127,
     oledRecovering: true, oledCapturedBytes: 512,
     oledCaptureErrors: 3, oledDroppedFrames: 2
@@ -307,12 +314,185 @@ test('debug off still renders frames and reports failed frame requests', async (
     'X-OLED-Flags': '25', 'X-OLED-Sequence': '42',
     'X-OLED-Start-Line': '0', 'X-OLED-Display-Offset': '0'
   }), false);
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 42 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 42 });
   assert.deepEqual(pixels, [[0, 0]]);
   assert.equal(context.oledStatusEl.textContent, 'Mirroring active');
 
   context.fetch = async () => { throw new Error('Network offline'); };
-  await context.refreshOledMirror({ oledReady: true, oledSequence: 43 });
+  await context.refreshOledMirror({ ferminatorEnabled: true, oledReady: true, oledSequence: 43 });
   assert.match(context.oledStatusEl.textContent, /Network error/);
   assert.equal(context.lastOledSequence, 42);
+});
+
+test('Ferminator panel is absent when disabled, and debug remains a separate setting', () => {
+  const panelCode = source.slice(
+    source.indexOf('if (cfg.ferminatorEnabled)'),
+    source.indexOf('    html += R"rawhtml(\n  <!-- VALVE CONTROLS -->'))
+    .replace(/R"rawhtml\(([\s\S]*?)\)rawhtml"/g, (_, html) => JSON.stringify(html))
+    .replace(/OledMirrorConfig::/g, 'OledMirrorConfig.');
+  assert.ok(panelCode.includes('oled-screen'));
+  for (const enabled of [false, true]) {
+    for (const debug of [false, true]) {
+      const context = vm.createContext({
+        html: '', cfg: { ferminatorEnabled: enabled },
+        OledMirrorConfig: { SHOW_DEBUG_INFO: debug }
+      });
+      vm.runInContext(panelCode, context);
+      if (enabled) {
+        assert.match(context.html, /id="oled-screen"/);
+        assert.match(context.html, new RegExp('data-debug-info="' + debug + '"'));
+      } else {
+        assert.equal(context.html, '');
+      }
+    }
+  }
+});
+
+test('a page without the Ferminator panel initializes and makes no OLED requests', async () => {
+  const context = vm.createContext({
+    document: { getElementById: () => null }
+  });
+  vm.runInContext(source.slice(
+    source.indexOf('const oledCanvas ='),
+    source.indexOf('function showStatus(')), context);
+  vm.runInContext(renderingCode, context);
+  await context.refreshOledMirror({ ferminatorEnabled: false });
+  // Even a stale enabled API response must not start OLED polling on this page.
+  await context.refreshOledMirror({
+    ferminatorEnabled: true, oledReady: true, oledSequence: 1
+  });
+  assert.equal(vm.runInContext('oledDebugInfoEnabled', context), false);
+});
+
+test('disabled Ferminator skips diagnostics and fetches even if a stale panel exists', async () => {
+  const { context, pixels } = harness();
+  let requests = 0;
+  context.fetch = async () => { requests++; throw new Error('Unexpected OLED request'); };
+  await context.refreshOledMirror({
+    ferminatorEnabled: false, oledReady: true, oledSequence: 1
+  });
+  assert.equal(requests, 0);
+  assert.equal(pixels.length, 0);
+  assert.equal(context.oledStatusEl.textContent, '');
+  assert.equal(context.oledTimingEl.textContent, '');
+});
+
+test('pressure, voltage, temperature and valve updates work without a Ferminator panel', async () => {
+  const { context } = harness();
+  const valveStates = [];
+  const requests = [];
+  Object.assign(context, {
+    oledCanvas: null, oledTimingEl: null, oledStatusEl: null,
+    liveDataRefreshInProgress: false, deviceRestartPending: false,
+    pressurePsiEl: {}, pressureBarEl: {}, voltageEl: {},
+    tempCardEl: { style: {} }, tempValueEl: {},
+    deviceNameEl: {}, valveActivationsPerHourEl: {},
+    setValveState: (...args) => valveStates.push(args),
+    setManualTimer: () => {}, setFirmwareInfo: () => {},
+    fetch: async url => {
+      requests.push(url);
+      return { ok: true, json: async () => ({
+        ferminatorEnabled: false, pressure: 10, voltage: 1.25,
+        pressureConnected: true, useTempSensor: true,
+        temperature: 20.5, tempConnected: true,
+        manualOverride: true, manualOn: true, remainingTime: 9000,
+        valveActivationsPerHour: 3
+      }) };
+    }
+  });
+  vm.runInContext(source.slice(
+    source.indexOf('async function refreshLiveData('),
+    source.indexOf('async function reloadAfterRestart(')), context);
+  await context.refreshLiveData();
+  assert.deepEqual(requests, ['/api']);
+  assert.equal(context.pressurePsiEl.textContent, '10.00 PSI');
+  assert.equal(context.pressureBarEl.textContent, '0.69 Bar');
+  assert.equal(context.voltageEl.textContent, '1.250 V');
+  assert.equal(context.tempValueEl.textContent, '20.50 °C');
+  assert.equal(context.valveActivationsPerHourEl.textContent, '3');
+  assert.deepEqual(valveStates, [[true, true]]);
+  assert.equal(context.liveDataRefreshInProgress, false);
+});
+
+test('Ferminator setting defaults off and is persisted before changing its live value', () => {
+  const settingsSource = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'Settings.cpp'), 'utf8');
+  assert.match(settingsSource, /ferminatorEnabled = prefs\.getBool\("ferminator", false\);/);
+  const setter = settingsSource.match(/bool Settings::setFerminatorEnabled\(bool val\) \{([\s\S]*?)\n\}/);
+  assert.ok(setter);
+  for (const saved of [false, true]) {
+    const writes = [];
+    const context = vm.createContext({
+      ferminatorEnabled: false,
+      saveBool: (key, value) => { writes.push([key, value]); return saved; }
+    });
+    vm.runInContext('function setFerminatorEnabled(val) {' + setter[1] + '}', context);
+    assert.equal(context.setFerminatorEnabled(false), true);
+    assert.equal(writes.length, 0);
+    assert.equal(context.setFerminatorEnabled(true), saved);
+    assert.equal(context.ferminatorEnabled, saved);
+    assert.deepEqual(writes, [['ferminator', true]]);
+    if (saved) {
+      assert.equal(context.setFerminatorEnabled(true), true);
+      assert.equal(writes.length, 1);
+      assert.equal(context.setFerminatorEnabled(false), true);
+      assert.equal(context.ferminatorEnabled, false);
+      assert.deepEqual(writes[1], ['ferminator', false]);
+    }
+  }
+});
+
+test('capture startup and OLED HTTP routes are gated by the saved setting', () => {
+  const main = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'main.cpp'), 'utf8');
+  const server = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'web_server.cpp'), 'utf8');
+  assert.match(main, /if \(settings\.ferminatorEnabled && !OledMirror::begin\(\)\)/);
+  assert.match(server, /if \(!readSettingsSnapshot\(\)\.ferminatorEnabled\) \{\s*server\.send\(403,[^;]+;\s*return;/);
+  assert.match(server, /if \(cfg\.ferminatorEnabled\) \{[\s\S]*?OledMirror::getStatus\(oled\);[\s\S]*?oledJson =[\s\S]*?\n        \}/);
+  assert.match(server, /snapshot\.ferminatorEnabled = settings\.ferminatorEnabled;/);
+  assert.match(server, /value != "0" && value != "1"/);
+  assert.match(server, /const bool rebooting = wifiChanged \|\| ferminatorChanged;/);
+  assert.match(source, /select name="ferminatorEnabled"/);
+});
+
+function restartHarness(responses) {
+  const statuses = [];
+  let requests = 0;
+  let reloads = 0;
+  const context = vm.createContext({
+    deviceRestartPending: false,
+    showStatus: (...args) => statuses.push(args),
+    setTimeout: resolve => resolve(),
+    AbortSignal,
+    fetch: async () => {
+      const response = responses[requests++] || { ok: false };
+      if (response instanceof Error) throw response;
+      return response;
+    },
+    window: { location: { reload: () => { reloads++; } } }
+  });
+  vm.runInContext(source.slice(
+    source.indexOf('async function reloadAfterRestart('),
+    source.indexOf('async function submitSettingsForm(')), context);
+  return { context, statuses, requests: () => requests, reloads: () => reloads };
+}
+
+test('restart waits through connection failures and reloads only after reconnection', async () => {
+  const run = restartHarness([new Error('Rebooting'), { ok: false }, { ok: true }]);
+  await run.context.reloadAfterRestart();
+  assert.equal(run.requests(), 3);
+  assert.equal(run.reloads(), 1);
+  assert.equal(run.context.deviceRestartPending, true);
+  assert.match(run.statuses[0][0], /restarting/);
+});
+
+test('restart timeout is reported instead of silently leaving the old page', async () => {
+  const run = restartHarness([]);
+  await run.context.reloadAfterRestart();
+  assert.equal(run.requests(), 30);
+  assert.equal(run.reloads(), 0);
+  assert.equal(run.context.deviceRestartPending, false);
+  assert.equal(run.statuses.at(-1)[1], 'error');
+  assert.match(run.statuses.at(-1)[0], /not reconnected/);
 });

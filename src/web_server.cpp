@@ -121,6 +121,7 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.offsetVoltage = settings.offsetVoltage;
         snapshot.tempOffset = settings.tempOffset;
         snapshot.useTempSensor = settings.useTempSensor;
+        snapshot.ferminatorEnabled = settings.ferminatorEnabled;
         snapshot.tsApiKey = settings.tsApiKey;
         snapshot.bfStreamId = settings.bfStreamId;
         snapshot.bfDeviceName = settings.bfDeviceName;
@@ -152,6 +153,10 @@ void handleRoot() {
 }
 
 static void handleOledFrame() {
+    if (!readSettingsSnapshot().ferminatorEnabled) {
+        server.send(403, "text/plain", "Ferminator control is disabled");
+        return;
+    }
     OledMirror::Snapshot snapshot;
     OledMirror::getSnapshot(snapshot);
     if (!snapshot.ready) {
@@ -191,31 +196,51 @@ void handleApi() {
     if (server.method() == HTTP_GET) {
         RuntimeSnapshot runtime = readRuntimeSnapshot();
         SettingsSnapshot cfg = readSettingsSnapshot();
-        OledMirror::Status oled;
-        OledMirror::getStatus(oled);
-        const uint32_t timingNow = millis();
-        const uint32_t intervals = oled.timing.frames > 0 ? oled.timing.frames - 1 : 0;
-        String frameTimingJson = "{\"frames\":" + String(oled.timing.frames) +
-            ",\"intervals\":" + String(intervals) +
-            ",\"observedMs\":" + String(oled.timing.frames > 0
-                ? timingNow - oled.timing.firstFrameMs : 0) +
-            ",\"currentGapMs\":" + (oled.timing.frames > 0
-                ? String(timingNow - oled.timing.lastFrameMs) : String("null")) +
-            ",\"lastIntervalMs\":" + (intervals > 0
-                ? String(oled.timing.lastIntervalMs) : String("null")) +
-            ",\"minIntervalMs\":" + (intervals > 0
-                ? String(oled.timing.minIntervalMs) : String("null")) +
-            ",\"meanIntervalMs\":" + (intervals > 0
-                ? String(static_cast<double>(oled.timing.totalIntervalMs) / intervals, 2)
-                : String("null")) +
-            ",\"maxIntervalMs\":" + (intervals > 0
-                ? String(oled.timing.maxIntervalMs) : String("null")) +
-            ",\"bucketBoundsMs\":[1500,3000,5000,10000,30000],\"buckets\":[";
-        for (size_t i = 0; i < 6; ++i) {
-            if (i != 0) frameTimingJson += ',';
-            frameTimingJson += String(oled.timing.buckets[i]);
+        String oledJson;
+        if (cfg.ferminatorEnabled) {
+            OledMirror::Status oled;
+            OledMirror::getStatus(oled);
+            const uint32_t timingNow = millis();
+            const uint32_t intervals = oled.timing.frames > 0 ? oled.timing.frames - 1 : 0;
+            String frameTimingJson = "{\"frames\":" + String(oled.timing.frames) +
+                ",\"intervals\":" + String(intervals) +
+                ",\"observedMs\":" + String(oled.timing.frames > 0
+                    ? timingNow - oled.timing.firstFrameMs : 0) +
+                ",\"currentGapMs\":" + (oled.timing.frames > 0
+                    ? String(timingNow - oled.timing.lastFrameMs) : String("null")) +
+                ",\"lastIntervalMs\":" + (intervals > 0
+                    ? String(oled.timing.lastIntervalMs) : String("null")) +
+                ",\"minIntervalMs\":" + (intervals > 0
+                    ? String(oled.timing.minIntervalMs) : String("null")) +
+                ",\"meanIntervalMs\":" + (intervals > 0
+                    ? String(static_cast<double>(oled.timing.totalIntervalMs) / intervals, 2)
+                    : String("null")) +
+                ",\"maxIntervalMs\":" + (intervals > 0
+                    ? String(oled.timing.maxIntervalMs) : String("null")) +
+                ",\"bucketBoundsMs\":[1500,3000,5000,10000,30000],\"buckets\":[";
+            for (size_t i = 0; i < 6; ++i) {
+                if (i != 0) frameTimingJson += ',';
+                frameTimingJson += String(oled.timing.buckets[i]);
+            }
+            frameTimingJson += "]}";
+            oledJson = ",\"oledReady\":" + String(oled.ready ? "true" : "false") +
+                       ",\"oledSequence\":" + String(oled.sequence) +
+                       ",\"oledCapturedBytes\":" + String(oled.capturedBytes) +
+                       ",\"oledLastUpdateMs\":" + String(oled.lastUpdateMs) +
+                       ",\"oledOverflows\":" + String(oled.overflowCount) +
+                       ",\"oledCaptureErrors\":" + String(oled.captureErrors) +
+                       ",\"oledDroppedFrames\":" + String(oled.droppedFrames) +
+                       ",\"oledRecovering\":" + (oled.recovering ? "true" : "false") +
+                       ",\"oledFrameTiming\":" + frameTimingJson +
+                       ",\"oledDisplayEnabled\":" + (oled.displayEnabled ? "true" : "false") +
+                       ",\"oledDisplayAllOn\":" + (oled.displayAllOn ? "true" : "false") +
+                       ",\"oledInverse\":" + (oled.inverse ? "true" : "false") +
+                       ",\"oledSegmentRemap\":" + (oled.segmentRemap ? "true" : "false") +
+                       ",\"oledComScanReverse\":" + (oled.comScanReverse ? "true" : "false") +
+                       ",\"oledStartLine\":" + String(oled.startLine) +
+                       ",\"oledDisplayOffset\":" + String(oled.displayOffset) +
+                       ",\"oledKnownState\":" + String(oled.knownState);
         }
-        frameTimingJson += "]}";
 
         long remaining = -1;
         if (runtime.manualOverride) {
@@ -236,6 +261,7 @@ void handleApi() {
                        ",\"pressureAdc\":" + String(static_cast<int>(cfg.pressureAdc)) +
                        ",\"offsetVoltage\":" + String(cfg.offsetVoltage, 3) + 
                        ",\"useTempSensor\":" + (cfg.useTempSensor ? "true" : "false") +
+                       ",\"ferminatorEnabled\":" + (cfg.ferminatorEnabled ? "true" : "false") +
                        ",\"devName\":\"" + cfg.devName + "\"" +
                        ",\"manualOverride\":" + (runtime.manualOverride ? "true" : "false") +
                        ",\"manualOn\":" + (runtime.manualOn ? "true" : "false") +
@@ -244,23 +270,7 @@ void handleApi() {
                        ",\"lastTsSyncMs\":" + String(cloudLastTsSyncMs()) +
                        ",\"lastBfSyncMs\":" + String(cloudLastBfSyncMs()) +
                        ",\"lastHttpSyncMs\":" + String(cloudLastHttpSyncMs()) +
-                       ",\"oledReady\":" + (oled.ready ? "true" : "false") +
-                       ",\"oledSequence\":" + String(oled.sequence) +
-                       ",\"oledCapturedBytes\":" + String(oled.capturedBytes) +
-                       ",\"oledLastUpdateMs\":" + String(oled.lastUpdateMs) +
-                       ",\"oledOverflows\":" + String(oled.overflowCount) +
-                       ",\"oledCaptureErrors\":" + String(oled.captureErrors) +
-                       ",\"oledDroppedFrames\":" + String(oled.droppedFrames) +
-                       ",\"oledRecovering\":" + (oled.recovering ? "true" : "false") +
-                       ",\"oledFrameTiming\":" + frameTimingJson +
-                       ",\"oledDisplayEnabled\":" + (oled.displayEnabled ? "true" : "false") +
-                       ",\"oledDisplayAllOn\":" + (oled.displayAllOn ? "true" : "false") +
-                       ",\"oledInverse\":" + (oled.inverse ? "true" : "false") +
-                       ",\"oledSegmentRemap\":" + (oled.segmentRemap ? "true" : "false") +
-                       ",\"oledComScanReverse\":" + (oled.comScanReverse ? "true" : "false") +
-                       ",\"oledStartLine\":" + String(oled.startLine) +
-                       ",\"oledDisplayOffset\":" + String(oled.displayOffset) +
-                       ",\"oledKnownState\":" + String(oled.knownState) +
+                       oledJson +
                        ",\"firmwareVersion\":\"" + escapeJsonString(cfg.firmwareVersion) + "\"" +
                        ",\"firmwareBuildDate\":\"" + escapeJsonString(cfg.firmwareBuildDate) + "\"}";
         server.send(200, "application/json", json);
@@ -711,12 +721,34 @@ void handleApi() {
             }
         }
         
+        bool ferminatorChanged = false;
+        if (!hasErrors && server.hasArg("ferminatorEnabled")) {
+            const String value = server.arg("ferminatorEnabled");
+            if (value != "0" && value != "1") {
+                addError("ferminatorEnabled", "must_be_0_or_1");
+            } else if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                const bool enabled = value == "1";
+                const bool changed = settings.ferminatorEnabled != enabled;
+                if (!settings.setFerminatorEnabled(enabled)) {
+                    saveFailed("ferminatorEnabled");
+                } else {
+                    ferminatorChanged = changed;
+                }
+                xSemaphoreGive(runtimeState.settingsMutex);
+            } else {
+                lockFailed("settingsMutex");
+            }
+        }
+
         if (hasErrors) {
             String response = "{\"success\":false,\"errors\":[" + errorsJson + "]}";
             server.send(400, "application/json", response);
         } else {
-            server.send(200, "application/json", "{\"success\":true}");
-            if (wifiChanged) {
+            const bool rebooting = wifiChanged || ferminatorChanged;
+            server.send(200, "application/json", rebooting
+                ? "{\"success\":true,\"rebooting\":true}"
+                : "{\"success\":true}");
+            if (rebooting) {
                 delay(200);
                 ESP.restart();
             }

@@ -98,6 +98,7 @@ void Settings::load() {
     offsetVoltage = prefs.getFloat("offsetVoltage", SensorConfig::PRESSURE_OFFSET_DEFAULT);
     tempOffset = prefs.getFloat("tempOffset", 0.5);
     useTempSensor = prefs.getBool("useTemp", true);
+    ferminatorEnabled = prefs.getBool("ferminator", false);
     // ⚠️ NO HARDCODED API KEYS - must be configured via web UI
     tsApiKey = prefs.getString("tsApiKey", "");
     bfStreamId = prefs.getString("bfStreamId", "");
@@ -259,6 +260,13 @@ bool Settings::setUseTempSensor(bool val) {
     if (useTempSensor == val) return true;
     useTempSensor = val;
     return saveBool("useTemp", val);
+}
+
+bool Settings::setFerminatorEnabled(bool val) {
+    if (ferminatorEnabled == val) return true;
+    if (!saveBool("ferminator", val)) return false;
+    ferminatorEnabled = val;
+    return true;
 }
 
 bool Settings::setTsApiKey(const String& val) {

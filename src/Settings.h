@@ -28,6 +28,7 @@ public:
     float offsetVoltage;
     float tempOffset;
     bool useTempSensor;
+    bool ferminatorEnabled = false;
 
     // Cloud credentials
     String tsApiKey;
@@ -67,6 +68,7 @@ public:
     bool setOffsetVoltage(float val);
     bool setTempOffset(float val);
     bool setUseTempSensor(bool val);
+    bool setFerminatorEnabled(bool val);
     bool setTsApiKey(const String& val);
     bool setBfStreamId(const String& val);
     bool setBfDeviceName(const String& val);

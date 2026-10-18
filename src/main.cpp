@@ -83,7 +83,7 @@ void setup() {
   Serial.println("[BOOT] Starting web server");
   initWebServer();
 
-  if (!OledMirror::begin()) {
+  if (settings.ferminatorEnabled && !OledMirror::begin()) {
     Serial.println("OLED mirror initialization failed");
   }
 

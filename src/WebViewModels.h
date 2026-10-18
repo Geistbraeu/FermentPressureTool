@@ -35,6 +35,7 @@ struct SettingsSnapshot {
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
     float tempOffset = 0.0f;
     bool useTempSensor = true;
+    bool ferminatorEnabled = false;
     String tsApiKey;
     String bfStreamId;
     String bfDeviceName;

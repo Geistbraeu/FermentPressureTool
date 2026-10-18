@@ -345,15 +345,19 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     </div>
   </div>
 
-  <section class="oled-card" aria-label="Ferminator OLED mirror" data-debug-info=")rawhtml";
-    html += OledMirrorConfig::SHOW_DEBUG_INFO ? "true" : "false";
-    html += R"rawhtml(">
+)rawhtml";
+    if (cfg.ferminatorEnabled) {
+      html += R"rawhtml(  <section class="oled-card" aria-label="Ferminator OLED mirror" data-debug-info=")rawhtml";
+      html += OledMirrorConfig::SHOW_DEBUG_INFO ? "true" : "false";
+      html += R"rawhtml(">
     <div class="section-title">Ferminator OLED</div>
     <div id="oled-status" class="oled-status">Waiting for display data...</div>
     <div id="oled-timing" class="oled-status" hidden>Frame timing: waiting for two complete frames...</div>
     <canvas id="oled-screen" class="oled-screen" width="128" height="64"></canvas>
   </section>
-
+)rawhtml";
+    }
+    html += R"rawhtml(
   <!-- VALVE CONTROLS -->
   <div class="controls">
     <form action="/api" method="POST">
@@ -393,6 +397,24 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     <div class="tab-panel active" id="panel-main">
 
       <div class="section-title">Pressure &amp; Valve</div>
+
+      <div class="setting-group">
+        <label class="setting-label">Ferminator Control</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <select name="ferminatorEnabled">
+              <option value="0")rawhtml";
+    html += (!cfg.ferminatorEnabled ? " selected" : "");
+    html += R"rawhtml(>Disabled</option>
+              <option value="1")rawhtml";
+    html += (cfg.ferminatorEnabled ? " selected" : "");
+    html += R"rawhtml(>Enabled</option>
+            </select>
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+        <p class="cloud-last-sync">Enable only on the controller connected to the Ferminator. Changing this setting restarts the device.</p>
+      </div>
 
       <div class="setting-group">
         <label class="setting-label">Max Pressure Threshold (PSI)</label>
@@ -922,11 +944,13 @@ const firmwareBuildLabelEl = document.getElementById('fw-build-label');
 const oledCanvas = document.getElementById('oled-screen');
 const oledStatusEl = document.getElementById('oled-status');
 const oledTimingEl = document.getElementById('oled-timing');
-const oledDebugInfoEnabled = oledCanvas.closest('.oled-card').dataset.debugInfo === 'true';
+const oledDebugInfoEnabled = Boolean(oledCanvas &&
+  oledCanvas.closest('.oled-card').dataset.debugInfo === 'true');
 if (oledTimingEl) oledTimingEl.hidden = !oledDebugInfoEnabled;
 const oledContext = oledCanvas ? oledCanvas.getContext('2d') : null;
 let lastOledSequence = -1;
 let liveDataRefreshInProgress = false;
+let deviceRestartPending = false;
 
 function showStatus(message, kind) {
   if (!statusEl) return;
@@ -1057,6 +1081,7 @@ function renderOledTiming(timing) {
 }
 
 async function refreshOledMirror(data) {
+  if (!oledCanvas || !data.ferminatorEnabled) return;
   renderOledTiming(data.oledFrameTiming);
   if (!oledStatusEl) return;
 
@@ -1146,7 +1171,7 @@ async function refreshOledMirror(data) {
 }
 
 async function refreshLiveData() {
-  if (liveDataRefreshInProgress) return;
+  if (liveDataRefreshInProgress || deviceRestartPending) return;
   liveDataRefreshInProgress = true;
   try {
     const response = await fetch('/api', { cache: 'no-store' });
@@ -1229,6 +1254,28 @@ async function refreshLiveData() {
   }
 }
 
+async function reloadAfterRestart() {
+  deviceRestartPending = true;
+  showStatus('Data saved. Device restarting...', 'success');
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const response = await fetch('/api', {
+        cache: 'no-store', signal: AbortSignal.timeout(2000)
+      });
+      if (response.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch (error) {
+      // Connection loss is expected while the device restarts.
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  deviceRestartPending = false;
+  showStatus('Device has not reconnected. Check its connection and reload the page.', 'error');
+}
+
 async function submitSettingsForm(event) {
   event.preventDefault();
 
@@ -1254,6 +1301,10 @@ async function submitSettingsForm(event) {
     }
 
     if (data && data.success) {
+      if (data.rebooting) {
+        await reloadAfterRestart();
+        return;
+      }
       const cmd = body.get('cmd');
       showStatus(cmd ? 'Manual control updated.' : 'Data saved.', 'success');
       await refreshLiveData();
