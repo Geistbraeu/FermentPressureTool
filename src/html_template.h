@@ -459,6 +459,18 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
       </div>
 
       <div class="setting-group">
+        <label class="setting-label">Sensor Max Pressure (PSI)</label>
+        <form action="/api" method="POST">
+          <div class="setting-row">
+            <input type="number" min="0" step="any" name="sensorMaxPsi" required value=")rawhtml";
+    html += String(cfg.sensorMaxPsi, 6);
+    html += R"rawhtml(">
+            <button class="btn-set" type="submit">Set</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="setting-group">
         <label class="setting-label">Voltage Offset (V)</label>
         <form action="/api" method="POST">
           <div class="setting-row">

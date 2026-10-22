@@ -124,6 +124,7 @@ static SettingsSnapshot readSettingsSnapshot() {
         snapshot.tsIntervalSeconds = settings.tsIntervalSeconds;
         snapshot.bfIntervalMinutes = settings.bfIntervalMinutes;
         snapshot.pressureAdc = settings.pressureAdc;
+        snapshot.sensorMaxPsi = settings.sensorMaxPsi;
         snapshot.offsetVoltage = settings.offsetVoltage;
         snapshot.tempOffset = settings.tempOffset;
         snapshot.useTempSensor = settings.useTempSensor;
@@ -179,6 +180,7 @@ void handleApi() {
                        ",\"oledSwapSec\":" + String(cfg.oledMetricSwitchSeconds) +
                        ",\"adaptiveFilter\":" + (cfg.adaptiveFilterEnabled ? "true" : "false") +
                        ",\"pressureAdc\":" + String(static_cast<int>(cfg.pressureAdc)) +
+                       ",\"sensorMaxPsi\":" + String(cfg.sensorMaxPsi, 6) +
                        ",\"offsetVoltage\":" + String(cfg.offsetVoltage, 3) + 
                        ",\"useTempSensor\":" + (cfg.useTempSensor ? "true" : "false") +
                        ",\"devName\":\"" + cfg.devName + "\"" +
@@ -456,6 +458,22 @@ void handleApi() {
             } else {
                 if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
                     if (!settings.setOffsetVoltage(val)) saveFailed("offset");
+                    xSemaphoreGive(runtimeState.settingsMutex);
+                } else {
+                    lockFailed("settingsMutex");
+                }
+            }
+        }
+
+        if (server.hasArg("sensorMaxPsi")) {
+            String input = Validation::trim(server.arg("sensorMaxPsi"));
+            char* end = nullptr;
+            float val = strtof(input.c_str(), &end);
+            if (end == input.c_str() || *end != '\0' || !Validation::isValidSensorMaxPsi(val)) {
+                addError("sensorMaxPsi", "must_be_positive_finite_number");
+            } else {
+                if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
+                    if (!settings.setSensorMaxPsi(val)) saveFailed("sensorMaxPsi");
                     xSemaphoreGive(runtimeState.settingsMutex);
                 } else {
                     lockFailed("settingsMutex");

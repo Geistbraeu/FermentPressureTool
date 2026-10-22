@@ -130,7 +130,7 @@ float SensorManager::readTemperature(bool isEnabled, float tempOffset, bool* isC
 }
 
 SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
-                                                  uint8_t adcSource, float offsetVoltage,
+                                                  uint8_t adcSource, float offsetVoltage, float sensorMaxPsi,
                                                   bool isValveOpen,
                                                   bool adaptiveFilterEnabled,
                                                   float adaptiveAlphaMin,
@@ -140,9 +140,10 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
                                                   const esp_adc_cal_characteristics_t* adcChars) {
   float samples[ControlConfig::MAX_MEDIAN_SAMPLES];
 
-  if (!pressureAdcInitialized || activePressureAdc != adcSource) {
+  if (!pressureAdcInitialized || activePressureAdc != adcSource || activeSensorMaxPsi != sensorMaxPsi) {
     resetAdaptivePressure();
     activePressureAdc = adcSource;
+    activeSensorMaxPsi = sensorMaxPsi;
     pressureAdcInitialized = true;
     DBGF("Pressure ADC source: %s\n",
          adcSource == SensorConfig::PRESSURE_ADC_ADS1115 ? "ADS1115" : "ESP32");
@@ -190,7 +191,7 @@ SensorReading SensorManager::readFilteredPressure(unsigned int sampleCount, unsi
 
   float pressure = 0.0f;
   if (sensorVoltage > offsetVoltage) {
-    pressure = (sensorVoltage - offsetVoltage) * SensorConfig::PRESSURE_PSI_RANGE / SensorConfig::PRESSURE_VOLTAGE_RANGE;
+    pressure = (sensorVoltage - offsetVoltage) / SensorConfig::PRESSURE_VOLTAGE_RANGE * sensorMaxPsi;
   }
 
   if (!adaptiveFilterEnabled) {

@@ -53,6 +53,16 @@ sensor's 0.5-4.5 V signal range. Connect `VDD`, `GND`, `SDA`, and `SCL` to the b
 `ADDR` to `GND` for address `0x48`. The ADS1115 and ESP32 must share ground. Do not exceed the
 ADS1115 supply voltage or its absolute input limits.
 
+### Pressure sensor range
+
+In the main settings tab, under **Sensor & Calibration**, set **Sensor Max Pressure (PSI)**
+to the full-scale pressure printed on your sensor (for example, `100` for a 0-100 PSI sensor).
+The default is `100` PSI, including after upgrading existing devices. The value must be a
+positive finite number, is saved in NVS, and takes effect without a reboot for both ADC sources.
+It always uses PSI regardless of the display unit. The 0.5-4.5 V signal span and voltage
+offset calibration are unchanged; this setting does not change the valve pressure threshold.
+The API exposes `sensorMaxPsi` via `GET /api` and accepts it via `POST /api`.
+
 ### Recommended settings for external ADC
 
 When using the external ADS1115, the following settings are recommended for stable and responsive
@@ -260,7 +270,7 @@ View the output in the serial monitor.
   </p>
 
   <p>
-    <strong>Version</strong> 1.2.7 · <strong>Updated</strong> 2026-10-22
+    <strong>Version</strong> 1.2.8 · <strong>Updated</strong> 2026-10-22
   </p>
 
   <p>
