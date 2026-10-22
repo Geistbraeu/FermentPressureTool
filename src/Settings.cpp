@@ -283,7 +283,9 @@ bool Settings::setBfDeviceName(const String& val) {
 }
 
 bool Settings::setBfTempSource(int val) {
-    if (val != Settings::BF_TEMP_SOURCE_FERMENTER && val != Settings::BF_TEMP_SOURCE_ROOM) return false;
+    if (val != Settings::BF_TEMP_SOURCE_FERMENTER &&
+        val != Settings::BF_TEMP_SOURCE_ROOM &&
+        val != Settings::BF_TEMP_SOURCE_FRIDGE) return false;
     if (bfTempSource == val) return true;
     bfTempSource = val;
     return saveInt("bfTempSrc", val);

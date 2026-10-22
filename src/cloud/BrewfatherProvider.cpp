@@ -54,6 +54,8 @@ void BrewfatherProvider::send(const CloudPayload& payload) {
     if (useTempSensor) {
       if (bfTempSource == Settings::BF_TEMP_SOURCE_ROOM) {
         jsonBody += "\"ext_temp\":" + String(payload.temperatureC, 2) + ",";
+      } else if (bfTempSource == Settings::BF_TEMP_SOURCE_FRIDGE) {
+        jsonBody += "\"aux_temp\":" + String(payload.temperatureC, 2) + ",";
       } else {
         jsonBody += "\"temp\":" + String(payload.temperatureC, 2) + ",";
       }

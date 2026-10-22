@@ -545,7 +545,7 @@ void handleApi() {
         if (server.hasArg("bfTempSource")) {
             int val = server.arg("bfTempSource").toInt();
             if (!Validation::isValidBfTempSource(val)) {
-                addError("bfTempSource", "must_be_0_or_1");
+                addError("bfTempSource", "must_be_0_1_or_2");
             } else {
                 if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) == pdTRUE) {
                     if (!settings.setBfTempSource(val)) saveFailed("bfTempSource");

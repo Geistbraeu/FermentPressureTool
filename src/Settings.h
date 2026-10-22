@@ -8,6 +8,7 @@ class Settings {
 public:
     static constexpr int BF_TEMP_SOURCE_FERMENTER = 0;
     static constexpr int BF_TEMP_SOURCE_ROOM = 1;
+    static constexpr int BF_TEMP_SOURCE_FRIDGE = 2;
 
     float maxPressureThreshold;
     int pressureUnit;

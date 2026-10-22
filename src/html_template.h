@@ -693,6 +693,9 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
               <option value="1")rawhtml";
     html += (cfg.bfTempSource == 1 ? " selected" : "");
     html += R"rawhtml(>Room (ext_temp)</option>
+              <option value="2")rawhtml";
+    html += (cfg.bfTempSource == 2 ? " selected" : "");
+    html += R"rawhtml(>Fridge (aux_temp)</option>
             </select>
           </div>
         </div>

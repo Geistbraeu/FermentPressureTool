@@ -197,7 +197,7 @@ Configure API keys and settings via the configuration portal or web interface:
 ## 🌐 Cloud Integration
 
 ### Brewfather
-Integration with the popular homebrewing platform. Sends pressure and temperature data.
+Integration with the popular homebrewing platform. Sends pressure and temperature data. The temperature field can be configured as Fermenter (`temp`), Room (`ext_temp`), or Fridge (`aux_temp`).
 
 ### ThingSpeak
 IoT platform for data storage and visualization. Supports measurement history and charts.
@@ -260,7 +260,7 @@ View the output in the serial monitor.
   </p>
 
   <p>
-    <strong>Version</strong> 1.2.6 · <strong>Updated</strong> 2026-09-20
+    <strong>Version</strong> 1.2.7 · <strong>Updated</strong> 2026-10-22
   </p>
 
   <p>

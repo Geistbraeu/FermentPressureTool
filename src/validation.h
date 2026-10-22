@@ -110,10 +110,10 @@ namespace Validation {
 
   /**
    * Brewfather temperature source validation
-   * Valid: 0 (Fermenter) or 1 (Room / ext_temp)
+   * Valid: 0 (Fermenter), 1 (Room / ext_temp), or 2 (Fridge / aux_temp)
    */
   inline bool isValidBfTempSource(int val) {
-    return val == 0 || val == 1;
+    return val == 0 || val == 1 || val == 2;
   }
 
   /**
