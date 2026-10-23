@@ -14,6 +14,7 @@
 #include "RuntimeState.h"
 #include "CloudManager.h"
 #include "device/OledMirror.h"
+#include "device/FerminatorButtons.h"
 
 extern RuntimeState runtimeState;
 
@@ -191,6 +192,40 @@ static void handleOledFrame() {
     server.send(200, "application/octet-stream", "");
     server.sendContent(reinterpret_cast<const char*>(visibleFrame),
                        sizeof(visibleFrame));
+}
+
+static void handleFerminatorButton() {
+    if (xSemaphoreTake(runtimeState.settingsMutex, TaskConfig::MUTEX_TIMEOUT_TICKS) != pdTRUE) {
+        server.send(503, "application/json", "{\"success\":false,\"message\":\"Settings are busy\"}");
+        return;
+    }
+    const bool enabled = settings.ferminatorEnabled;
+    xSemaphoreGive(runtimeState.settingsMutex);
+    if (!enabled) {
+        server.send(403, "application/json", "{\"success\":false,\"message\":\"Ferminator control is disabled\"}");
+        return;
+    }
+
+    const String name = server.arg("button");
+    FerminatorButtons::Button button;
+    if (name == "temp_up") button = FerminatorButtons::Button::TempUp;
+    else if (name == "temp_down") button = FerminatorButtons::Button::TempDown;
+    else if (name == "start_stop") button = FerminatorButtons::Button::StartStop;
+    else if (name == "fan_speed") button = FerminatorButtons::Button::FanSpeed;
+    else {
+        server.send(400, "application/json", "{\"success\":false,\"message\":\"Unknown button\"}");
+        return;
+    }
+
+    const auto result = FerminatorButtons::press(button);
+    if (result == FerminatorButtons::Result::Busy) {
+        server.send(429, "application/json", "{\"success\":false,\"message\":\"Wait before pressing another button\"}");
+    } else if (result != FerminatorButtons::Result::Pressed) {
+        server.send(503, "application/json", "{\"success\":false,\"message\":\"Button controller is unavailable\"}");
+    } else {
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json", "{\"success\":true}");
+    }
 }
 
 void handleApi() {
@@ -833,6 +868,7 @@ void webServerTask(void *pvParameters) {
     server.on("/", handleRoot);
     server.on("/api", handleApi);
     server.on("/oled", HTTP_GET, handleOledFrame);
+    server.on("/ferminator/button", HTTP_POST, handleFerminatorButton);
     server.on("/update", HTTP_POST, handleFirmwareUpdateResult, handleFirmwareUpdateUpload);
     server.begin();
     Serial.println("[Web] Main HTTP server active on port 80");

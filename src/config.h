@@ -57,6 +57,15 @@ namespace OledMirrorConfig {
   constexpr int TASK_CORE = 0;
 }
 
+namespace FerminatorButtonConfig {
+  constexpr int TEMP_UP_PIN = 10;
+  constexpr int TEMP_DOWN_PIN = 11;
+  constexpr int START_STOP_PIN = 12;
+  constexpr int FAN_SPEED_PIN = 13;
+  constexpr uint32_t PRESS_MS = 200;
+  constexpr uint32_t RELEASE_MS = 200;
+}
+
 // ==================== SENSOR CALIBRATION ====================
 namespace SensorConfig {
   constexpr uint8_t PRESSURE_ADC_ESP32 = 0;

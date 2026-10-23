@@ -44,6 +44,54 @@ A device for monitoring and controlling the fermentation process with real-time 
 - Serial (UART) at 115200 baud for debugging
 - CH340 USB-UART converter for programming
 
+### Ferminator buttons through PC817
+
+The current **ESP32-S3-mini** firmware reserves four previously unused GPIOs:
+
+| Channel | ESP32-S3 GPIO | Original button |
+|---------|---------------|-----------------|
+| 1 | 10 | Temperature + |
+| 2 | 11 | Temperature − |
+| 3 | 12 | Start/Stop |
+| 4 | 13 | Fan Speed |
+
+Other current S3 connections: pressure GPIO1, DS18B20 GPIO2, local I2C SDA GPIO5 /
+SCL GPIO4, valve GPIO6, passive OLED capture SDA GPIO9 / SCL GPIO8.
+The GPIO34/GPIO27 references above describe the older ESP32 hardware, not this build.
+
+Enable **Main Settings → Ferminator Control** to show buttons below the OLED mirror,
+matching the physical panel: + / − on the left, Start/Stop / Fan Speed on the right.
+Each click generates one **200 ms HIGH pulse**, returning to LOW, with at least 200 ms
+between pulses. There is no hold, auto-repeat, absolute temperature or fan-speed setting:
+the original Ferminator controller interprets each press. Check its display for the outcome;
+an HTTP success only confirms that the pulse was sent. Failed requests are never retried
+automatically, because a Start/Stop press may already have taken effect.
+
+**Input level shifting:** the linked Hailege PC817 module B0CJY4G9LS specifies **3.6–30 V**
+inputs, whereas ESP32 GPIOs provide 3.3 V. Do not assume direct drive is supported.
+Use one NPN transistor per channel: PC817 input + to +5 V, input − to collector,
+emitter to ESP32/5 V supply ground, GPIO through a base resistor (e.g. 2.2 kΩ) to base.
+Add 10 kΩ between base and emitter to keep the channel off while GPIO floats during reset.
+Verify resistor values and input current against your actual board schematic; module LED
+resistors are usually already fitted. Never apply 5 V to an ESP32 GPIO.
+
+**Outputs:** connect each isolated PC817 transistor across its original button contacts,
+collector to the more positive contact and emitter to the more negative contact.
+Measure polarity and check the panel circuit first: a PC817 is not a universal bidirectional
+dry contact for arbitrary button matrices. Check module jumpers and output pull-ups so they
+cannot inject external power into the button circuit. Without the module schematic, do not
+assume OUT/GND expose an uncommitted collector/emitter pair. The button interface alone does
+not require connecting output-side ground to ESP32 ground; other connections such as OLED
+capture may already share grounds.
+
+API: `POST /ferminator/button`, `application/x-www-form-urlencoded`, with
+`button=temp_up`, `button=temp_down`, `button=start_stop` or `button=fan_speed`.
+Responses: 200 pulse completed; 400 unknown button; 403 feature disabled;
+429 presses too frequent; 503 controller/settings unavailable.
+All four outputs are set LOW at startup, even when the feature is disabled.
+Use a trusted local network: like the existing valve-control API, this endpoint has no
+separate authentication.
+
 ### Pressure ADC selection
 
 The web settings provide a choice between the built-in ESP32 ADC and an external ADS1115.

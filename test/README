@@ -1,6 +1,17 @@
 
 This directory is intended for PlatformIO Test Runner and project tests.
 
+Web controls and OLED regression tests:
+  node --test test\oled_mirror.test.cjs test\ferminator_buttons.test.cjs
+
+Standalone button-controller test (host C++ compiler, not the ESP32 toolchain):
+  cl /EHsc /I test\stubs /I src test\ferminator_buttons.cpp src\device\FerminatorButtons.cpp /Fe:ferminator_buttons_test.exe
+  .\ferminator_buttons_test.exe
+The stubs emulate GPIO/time only and must not be included in firmware builds.
+Checks cover safe startup, pin mapping, exact pulse length, release interval,
+invalid buttons and millis() rollover. Remove generated host build files afterward.
+Physical polarity, module input current and Ferminator response still need hardware testing.
+
 Unit Testing is a software testing method by which individual units of
 source code, sets of one or more MCU program modules together with associated
 control data, usage procedures, and operating procedures, are tested to

@@ -12,6 +12,7 @@
 #include "RuntimeState.h"
 #include "debug.h"
 #include "device/DisplayManager.h"
+#include "device/FerminatorButtons.h"
 #include "device/OledMirror.h"
 #include "device/SensorManager.h"
 #include "device/SolenoidController.h"
@@ -25,6 +26,7 @@ void networkTask(void *pvParameters);
 void processSampledData();
 
 void setup() {
+  FerminatorButtons::begin();
   Serial.begin(NetworkConfig::SERIAL_BAUD_RATE);
   delay(300);
   Serial.println("\n[BOOT] FermentPressureTool starting");

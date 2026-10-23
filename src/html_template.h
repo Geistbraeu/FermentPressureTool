@@ -152,6 +152,20 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     font-size: 0.8rem;
     margin-top: 4px;
   }
+  .ferminator-controls {
+    display: grid;
+    grid-template-columns: minmax(64px, 1fr) minmax(0, 2fr);
+    gap: 10px;
+    max-width: 512px;
+    margin: 14px auto 0;
+  }
+  .ferminator-button {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    min-height: 44px;
+  }
+  .ferminator-button:disabled { opacity: 0.5; cursor: wait; }
 
   /* TABS */
   .tabs-nav {
@@ -354,6 +368,13 @@ String getHtml(const RuntimeSnapshot& runtime, const SettingsSnapshot& cfg) {
     <div id="oled-status" class="oled-status">Waiting for display data...</div>
     <div id="oled-timing" class="oled-status" hidden>Frame timing: waiting for two complete frames...</div>
     <canvas id="oled-screen" class="oled-screen" width="128" height="64"></canvas>
+    <div class="ferminator-controls" role="group" aria-label="Ferminator buttons">
+      <button class="btn ferminator-button" type="button" data-ferminator-button="temp_up" aria-label="Increase temperature">+</button>
+      <button class="btn ferminator-button" type="button" data-ferminator-button="start_stop">Start/Stop</button>
+      <button class="btn ferminator-button" type="button" data-ferminator-button="temp_down" aria-label="Decrease temperature">&minus;</button>
+      <button class="btn ferminator-button" type="button" data-ferminator-button="fan_speed">Fan Speed</button>
+    </div>
+    <div id="ferminator-status" class="oled-status" role="status" aria-live="polite"></div>
   </section>
 )rawhtml";
     }
@@ -1023,6 +1044,42 @@ function setFirmwareInfo(version, buildDate) {
     firmwareBuildLabelEl.textContent = resolvedVersion + ' from ' + resolvedBuildDate;
   }
 }
+
+let ferminatorButtonPending = false;
+
+async function pressFerminatorButton(button) {
+  if (ferminatorButtonPending || deviceRestartPending) return;
+  ferminatorButtonPending = true;
+  const buttons = document.querySelectorAll('[data-ferminator-button]');
+  const status = document.getElementById('ferminator-status');
+  buttons.forEach(control => { control.disabled = true; });
+  status.textContent = 'Sending button press...';
+  try {
+    const response = await fetch('/ferminator/button', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ button }).toString(),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await response.json();
+    if (!response.ok || data.success !== true) {
+      throw new Error(data.message || 'Button press failed.');
+    }
+    status.textContent = 'Button pulse sent. Check the Ferminator display for the result.';
+  } catch (error) {
+    status.textContent = 'Unable to confirm button press: ' + error.message +
+      ' Check the display before trying again.';
+  } finally {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    buttons.forEach(control => { control.disabled = false; });
+    ferminatorButtonPending = false;
+  }
+}
+
+document.querySelectorAll('[data-ferminator-button]').forEach(control => {
+  control.addEventListener('click', () => pressFerminatorButton(control.dataset.ferminatorButton));
+});
 
 function renderOledFrame(frame, data) {
   if (!oledContext || frame.length !== 1024) return;
