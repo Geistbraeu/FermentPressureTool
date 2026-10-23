@@ -2,6 +2,7 @@
 #define VALIDATION_H
 
 #include <Arduino.h>
+#include <math.h>
 
 /**
  * FermentPreassureTool - Input Validation Helpers
@@ -26,6 +27,10 @@ namespace Validation {
    */
   inline bool isValidPressure(float val) {
     return val >= 0.5f && val <= 34.0f;
+  }
+
+  inline bool isValidSensorMaxPsi(float val) {
+    return isfinite(val) && val > 0.0f;
   }
 
   /**

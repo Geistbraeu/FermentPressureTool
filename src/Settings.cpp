@@ -1,5 +1,7 @@
 #include "Settings.h"
 #include "config.h"
+#include "debug.h"
+#include "validation.h"
 #include <Preferences.h>
 
 Settings settings;
@@ -96,6 +98,11 @@ void Settings::load() {
                       ? SensorConfig::PRESSURE_ADC_ADS1115
                       : SensorConfig::PRESSURE_ADC_ESP32;
     offsetVoltage = prefs.getFloat("offsetVoltage", SensorConfig::PRESSURE_OFFSET_DEFAULT);
+    sensorMaxPsi = prefs.getFloat("sensorMaxPsi", SensorConfig::PRESSURE_MAX_PSI_DEFAULT);
+    if (!Validation::isValidSensorMaxPsi(sensorMaxPsi)) {
+        DBG("Invalid stored sensorMaxPsi; using default 100 PSI");
+        sensorMaxPsi = SensorConfig::PRESSURE_MAX_PSI_DEFAULT;
+    }
     tempOffset = prefs.getFloat("tempOffset", 0.5);
     useTempSensor = prefs.getBool("useTemp", true);
     ferminatorEnabled = prefs.getBool("ferminator", false);
@@ -115,6 +122,9 @@ void Settings::load() {
 }
 
 bool Settings::isValid() const {
+    if (!Validation::isValidSensorMaxPsi(sensorMaxPsi)) {
+        return false;
+    }
     // Check if credentials are present when services are enabled
     if (tsEnabled && tsApiKey.isEmpty()) {
         return false;
@@ -240,6 +250,14 @@ bool Settings::setPressureAdc(int val) {
     if (pressureAdc == newAdc) return true;
     pressureAdc = newAdc;
     return saveInt("pressureAdc", val);
+}
+
+bool Settings::setSensorMaxPsi(float val) {
+    if (!Validation::isValidSensorMaxPsi(val)) return false;
+    if (sensorMaxPsi == val) return true;
+    if (!saveFloat("sensorMaxPsi", val)) return false;
+    sensorMaxPsi = val;
+    return true;
 }
 
 bool Settings::setOffsetVoltage(float val) {

@@ -181,6 +181,7 @@ void sensorTask(void *pvParameters) {
     uint8_t pressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
     bool adaptiveFilterEnabled = true;
     float offsetVoltage = SensorConfig::PRESSURE_OFFSET_DEFAULT;
+    float sensorMaxPsi = SensorConfig::PRESSURE_MAX_PSI_DEFAULT;
     float adaptiveAlphaMin = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MIN;
     float adaptiveAlphaMax = ControlConfig::DEFAULT_ADAPTIVE_ALPHA_MAX;
     float adaptiveDeltaRefPsi = ControlConfig::DEFAULT_ADAPTIVE_DELTA_REF_PSI;
@@ -192,6 +193,7 @@ void sensorTask(void *pvParameters) {
       pressureAdc = settings.pressureAdc;
       adaptiveFilterEnabled = settings.adaptiveFilterEnabled;
       offsetVoltage = settings.offsetVoltage;
+      sensorMaxPsi = settings.sensorMaxPsi;
       adaptiveAlphaMin = settings.adaptiveAlphaMin;
       adaptiveAlphaMax = settings.adaptiveAlphaMax;
       adaptiveDeltaRefPsi = settings.adaptiveDeltaRefPsi;
@@ -204,6 +206,7 @@ void sensorTask(void *pvParameters) {
                                    medianSampleDelayMs,
                                    pressureAdc,
                                    offsetVoltage,
+                                   sensorMaxPsi,
                                    isValveOpen,
                                    adaptiveFilterEnabled,
                                                                adaptiveAlphaMin,

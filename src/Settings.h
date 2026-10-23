@@ -25,6 +25,7 @@ public:
     unsigned long tsIntervalSeconds;
     unsigned long bfIntervalMinutes;
     uint8_t pressureAdc;
+    float sensorMaxPsi;
     float offsetVoltage;
     float tempOffset;
     bool useTempSensor;
@@ -65,6 +66,7 @@ public:
     bool setTsIntervalSeconds(unsigned long val);
     bool setBfIntervalMinutes(unsigned long val);
     bool setPressureAdc(int val);
+    bool setSensorMaxPsi(float val);
     bool setOffsetVoltage(float val);
     bool setTempOffset(float val);
     bool setUseTempSensor(bool val);

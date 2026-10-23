@@ -16,7 +16,7 @@ public:
   void initTempSensor(bool useTempSensor);
   float readTemperature(bool isEnabled, float tempOffset, bool* isConnected);
   SensorReading readFilteredPressure(unsigned int sampleCount, unsigned long sampleDelayMs,
-                                    uint8_t adcSource, float offsetVoltage,
+                                    uint8_t adcSource, float offsetVoltage, float sensorMaxPsi,
                                     bool isValveOpen,
                                     bool adaptiveFilterEnabled,
                                     float adaptiveAlphaMin,
@@ -32,6 +32,7 @@ private:
 
   bool pressureAdcInitialized = false;
   uint8_t activePressureAdc = SensorConfig::PRESSURE_ADC_ESP32;
+  float activeSensorMaxPsi = SensorConfig::PRESSURE_MAX_PSI_DEFAULT;
   bool adaptivePressureInitialized = false;
   float adaptivePressureFiltered = 0.0f;
   float adaptivePreviousError = 0.0f;

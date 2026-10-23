@@ -72,7 +72,7 @@ namespace SensorConfig {
   // Pressure sensor calibration
   constexpr float PRESSURE_OFFSET_DEFAULT = 0.515;  // Volts
   constexpr float PRESSURE_VOLTAGE_RANGE = 4.0;      // Volts (4.5V - 0.5V)
-  constexpr float PRESSURE_PSI_RANGE = 100.0;        // PSI
+  constexpr float PRESSURE_MAX_PSI_DEFAULT = 100.0f; // PSI
 
   // Voltage divider
   constexpr float ADC_VOLTAGE_DIVIDER = 1.4545455;
